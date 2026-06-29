@@ -38,6 +38,10 @@ wikis to a single shared, git-synced base split into domains.
   CLAUDE.md snippets; the server is a passive tool provider).
 - No HTTP/SSE transport in v1 (stdio only).
 - No deletion of existing wiki pages via tools (STOP and ask, as today).
+- No SQLite/ANN vector DB in v1 — per-domain JSONL at rest + numpy brute-force at
+  query, behind a storage interface so a later swap to SQLite/`sqlite-vec` is local.
+- No cross-domain `[[refs]]` / related in v1 — links resolve within one domain
+  (documented limitation; domain-qualified `[[domain/slug#Heading]]` is future work).
 
 ## Decisions (resolved during brainstorming)
 
@@ -55,21 +59,32 @@ wikis to a single shared, git-synced base split into domains.
    tool does `git pull --rebase` + `push`.
 7. **Engine reuse:** import `iwiki_engine` as an in-process library (approach A),
    not subprocess/CLI per call. The CLI stays as a dev tool.
+8. **Vector store:** per-domain JSONL at rest (git-friendly, no cross-domain merge
+   conflicts). Whole-base / multi-domain search merges the in-scope domain indices
+   into one numpy matrix and scores a single vectorized cosine. The store sits
+   behind an interface; SQLite/`sqlite-vec` is deferred until the base outgrows
+   brute-force (~100k+ chunks — well above wiki scale).
+9. **Retrieval:** hybrid — semantic (vector) ∪ lexical (grep/FTS over `.md`) →
+   merge → optional graph expansion (`related`). `wiki_search` takes a `mode`
+   (`hybrid` default, `vector`, `lexical`).
 
 ## Repository layout
 
 ```
 mcp-ai-wiki/
-  pyproject.toml            # package iwiki_mcp; deps: mcp, httpx, pathspec
+  pyproject.toml            # package iwiki_mcp; deps: mcp, httpx, pathspec, numpy
                             # [project.scripts] iwiki-mcp = "iwiki_mcp.server:main"
   src/iwiki_mcp/
     server.py               # FastMCP server: tool registration, stdio, main()
     base.py                 # resolve base dir + domains; project config (.iwiki.toml)
+    retrieval.py            # multi-domain merge (numpy cosine) + hybrid (vector∪grep) + graph
     sync.py                 # git: auto-commit, pull --rebase + push
     resources.py            # authoring rules exposed as MCP resource
     engine/                 # ported iwiki_engine core
       config.py             # embeddings config, decoupled from cwd/wiki-dir
-      chunk.py  embed.py  store.py  search.py  related.py  lint.py  validate.py  links.py
+      store.py              # JSONL records + VectorStore interface (load/save/query)
+      grep.py               # lexical search over a domain's .md pages
+      chunk.py  embed.py  search.py  related.py  lint.py  validate.py  links.py
   templates/
     AGENTS.md.snippet       # Codex automation instructions
     CLAUDE.md.snippet       # Claude Code automation instructions
@@ -94,8 +109,12 @@ reproduction on other machines.
 ```
 
 - `wiki_dir` for a domain = `<base>/<domain>` — the engine already takes this.
-- **Whole-base search** ("general knowledge") = iterate the domains in the chosen
-  scope, search each domain's index, merge and re-rank top-k across domains.
+- **Whole-base / multi-domain search** ("general knowledge") = load the in-scope
+  domains' `index.jsonl`, stack the dequantized vectors into one numpy matrix
+  (each row tagged with its domain), score a single vectorized cosine, take top-k.
+  Logically one search space; physically partitioned per domain. `id`/`hash` are
+  namespaced by domain (the `file` field carries `<domain>/<slug>.md`) so there are
+  no cross-domain collisions.
 - `slug` = page filename without `.md` (lowercase, `-`-joined, no spaces/slashes).
   One slug = one page = one concept. The server appends `.md` and places it in the
   domain; the agent never handles paths.
@@ -106,11 +125,16 @@ reproduction on other machines.
   server runs `validate_page` (block deep heading / pre-H2 text) → writes file →
   `index` the domain → append `log.jsonl` record → git auto-commit. Returns
   `{page, indexed_chunks, bytes, committed}`.
-- **Search:** `wiki_search(query, scope)` → embed query → cosine over each in-scope
-  domain index → merge → top-k sections back to the agent.
+- **Search (hybrid):** `wiki_search(query, scope, mode)` → resolve in-scope domains
+  → **vector** path: embed query, numpy-merged cosine over the domains' indices →
+  **lexical** path: grep/FTS the query terms over the domains' `.md` pages (catches
+  exact symbol/identifier matches embeddings blur) → merge & re-rank the two →
+  optional **graph** expansion (pull `related` neighbours of the top hit) → top-k.
+  `mode` selects `hybrid` (default), `vector`, or `lexical`.
 
 This is the same one-way ingest-then-search pipeline as today, lifted to
-multi-domain and driven by MCP tools instead of skills/hooks.
+multi-domain and driven by MCP tools instead of skills/hooks, with a lexical+graph
+layer added on top of the vector search.
 
 ## Project binding
 
@@ -146,12 +170,15 @@ All tools return JSON-serializable data; errors are returned as
 
 **Search / read**
 
-- `wiki_search(query, scope="project", domains=None, k=None, threshold=None)` →
-  `[{domain, file, heading, chunk, score}]`. Scope: `project` (read-set), `all`
-  (whole base), or explicit `domains=[...]`.
+- `wiki_search(query, scope="project", mode="hybrid", domains=None, k=None, threshold=None)`
+  → `[{domain, file, heading, chunk, score, hit}]` (`hit` ∈ `vector|lexical|both`).
+  Scope: `project` (read-set), `all` (whole base), or explicit `domains=[...]`.
+  Mode: `hybrid` (vector ∪ lexical), `vector`, or `lexical`.
 - `wiki_read_page(domain, slug)` → page markdown.
+- `wiki_list_pages(domain)` → page slugs + titles in a domain (discovery without a
+  query; backs the `tree`/navigation view).
 - `wiki_related(domain, section_id)` → neighbour sections (vector neighbours, with
-  `[[refs]]` link-graph fallback).
+  `[[refs]]` link-graph fallback). Resolves within the one domain (v1).
 
 **Write / authoring**
 
@@ -191,21 +218,62 @@ the server inside `wiki_write_page` — the agent no longer shells out for it.
   aborted and returned as `{error, hint}` (never leave the base half-rebased). No
   remote → local commit only, with a warning.
 - The index (`.iwiki/index.jsonl`) is committed with pages so other machines
-  reproduce search deterministically without re-embedding.
+  reproduce search deterministically without re-embedding. It is plain JSONL (one
+  record per line), so a git merge usually resolves cleanly; an unresolvable
+  conflict on `index.jsonl` is treated as a build artifact and **resolved by
+  regenerating** — `wiki_sync` re-runs `index` on the affected domain after the
+  rebase (chunk reuse by hash keeps the re-embed cost near zero).
 
 ## Engine changes
 
-The engine is otherwise ported unchanged. The one required change:
+Most of the engine is ported unchanged; these are the deltas:
 
-- `Config.load` currently couples embeddings config to cwd (defaults `docs/wiki`,
-  reads `.iwikiignore` from cwd). Decouple: load embeddings config (`IWIKI_LLM_*`,
-  model, dimensions, chunk/search tuning) independently of `wiki_dir`.
-  `.iwikiignore` is optional and unused in the base model (kept only if a domain
-  wants to scope its own pages; not required).
+- **`Config.load`** currently couples embeddings config to cwd (defaults
+  `docs/wiki`, reads `.iwikiignore` from cwd). Decouple: load embeddings config
+  (`IWIKI_LLM_*`, model, dimensions, chunk/search tuning — `IWIKI_TOP_K`,
+  `IWIKI_SCORE_THRESHOLD`, `IWIKI_GRAPH_DEPTH`, `IWIKI_CHUNK_SIZE`,
+  `IWIKI_CHUNK_OVERLAP`, `IWIKI_SUMMARY_MAX_CHARS`) independently of `wiki_dir`.
+  `.iwikiignore` stays optional and per-domain (not required in the base model).
+- **`store.py`** gains a thin `VectorStore` interface over the existing JSONL
+  records (`load`/`save`/`query`), so the per-domain JSONL backend can later be
+  swapped for SQLite without touching callers. Quantize/dequantize/cosine stay.
+- **`retrieval.py`** (new, in `iwiki_mcp`) does the multi-domain numpy merge and
+  the hybrid (vector ∪ lexical → graph) ranking; the engine's single-`wiki_dir`
+  `search`/`related` stay for the per-domain primitives it builds on.
+- **`grep.py`** (new) is the lexical path: term/regex match over a domain's `.md`
+  pages, returning the same section-shaped hits as vector search for merging.
+- The **8 MB index cap** warning is retained, now evaluated **per domain**.
 
-All other modules (`chunk`, `embed`, `store`, `search`, `related`, `lint`,
-`validate`, `links`) are taken as-is; they already operate on an explicit
-`wiki_dir`.
+All other modules (`chunk`, `embed`, `search`, `related`, `lint`, `validate`,
+`links`) are taken as-is; they already operate on an explicit `wiki_dir`.
+
+## Initial bootstrap (init)
+
+The plugin's `iwiki-init` (scan a project's source tree → one page per area →
+index → lint) becomes an **agent-driven workflow**, not a server tool: the
+automation snippet instructs the agent to detect source areas (entry points;
+immediate subdirs of `src/`/`lib/`/`app/`/`packages/`/`cmd/`/`internal/`; skipping
+`node_modules`/`dist`/`.venv`/tests), then loop `wiki_write_page` into the
+write-target domain per area, following `iwiki://authoring-rules`. The server stays
+dumb; the area-detection heuristics live in the snippet (ported from the
+`iwiki-init` skill). `wiki_status` surfaces an empty write-target so the agent
+knows a domain needs bootstrapping.
+
+## Staleness and gaps
+
+Freshness is **evaluated from the owning project's cwd**, because the source files
+live in the project repo, not the shared base. Each `log.jsonl` record carries the
+project-relative `source` path and its `src_hash = sha256(source)[:16]`.
+
+- `wiki_lint(domain)` runs the engine stale check: for each logged page, compare
+  the current source's hash against the logged `src_hash` (mtime fallback). The
+  source is resolved relative to the project cwd.
+- **Source absent** (e.g. linting a domain from a machine/project that does not
+  hold that source) → the page is **skipped, not flagged** (fail-soft), exactly as
+  `covered_sources` does today. Staleness is therefore project-local and never
+  produces false "stale" noise on a foreign machine.
+- **Gaps** (source areas with no page) are an advisory, project-local scan over the
+  same area set `init` uses; listed as candidates, never errors.
 
 ## Error handling (fail-soft)
 
@@ -226,6 +294,8 @@ Code) carry recommended instructions the user pastes into their agent-instructio
 file:
 
 - On task start: `wiki_search` the topic (recall) before working.
+- Bootstrapping a new write-target: detect source areas and loop `wiki_write_page`
+  per area (the ported `iwiki-init` heuristics).
 - After changing functionality: `wiki_write_page` into the write-target.
 - Periodically / at end: `wiki_sync`.
 - Before writing: fetch `iwiki://authoring-rules`.
@@ -288,12 +358,25 @@ TDD with pytest.
 - **New unit tests:**
   - `base.py` — base/domain resolution, `.iwiki.toml` parsing, defaults, absent
     domain handling.
+  - `retrieval.py` — numpy multi-domain merge (ranking equals single-index cosine);
+    hybrid merge of vector + lexical hits; `mode` selection; domain tagging.
+  - `grep.py` — lexical hits over `.md`, section shaping, regex/term matching.
   - `sync.py` — commit and sync against a temp git repo, including the conflict
-    path.
-  - `server.py` — each tool happy-path + error-path; multi-domain search merge;
-    scope `project` vs `all`.
+    path and the index-regenerate resolution.
+  - `server.py` — each tool happy-path + error-path; `wiki_list_pages`;
+    multi-domain search merge; scope `project` vs `all`; staleness fail-soft when a
+    source is absent.
 - **MCP smoke test:** drive the server over stdio with an MCP client — list tools,
   run one `wiki_search` / `wiki_status` end-to-end.
+
+## Limitations (v1)
+
+- `[[refs]]` / `related` resolve within a single domain; cross-domain links are not
+  followed (future: domain-qualified `[[domain/slug#Heading]]`).
+- Vector search is numpy brute-force over the in-scope domains; fine to ~100k
+  chunks, after which the `VectorStore` interface allows a SQLite/`sqlite-vec` swap.
+- Staleness is project-local — a domain's pages can only be checked for freshness
+  from a machine/project that holds the original source.
 
 ## Open questions
 
