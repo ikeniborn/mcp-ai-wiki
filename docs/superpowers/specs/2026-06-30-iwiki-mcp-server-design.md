@@ -85,7 +85,7 @@ wikis to a single shared, git-synced base split into domains.
 ## Repository layout
 
 ```
-mcp-ai-wiki/
+iwiki-mcp/
   pyproject.toml            # package iwiki_mcp; deps: mcp, httpx, pathspec, numpy
                             # [project.scripts] iwiki-mcp = "iwiki_mcp.server:main"
   src/iwiki_mcp/

@@ -15,8 +15,8 @@ iwiki-mcp — это общая wiki-база, синхронизируемая 
 iwiki-mcp **ещё не опубликован на PyPI**, поэтому ставьте из локальной копии. Клонируйте репозиторий и выполните из его корня:
 
 ```bash
-git clone https://github.com/ikeniborn/mcp-ai-wiki.git
-cd mcp-ai-wiki
+git clone https://github.com/ikeniborn/iwiki-mcp.git
+cd iwiki-mcp
 uv tool install .
 # или
 pipx install .
@@ -31,8 +31,8 @@ pipx install .
 Клонируйте, синхронизируйте зависимости (включая extra `dev`) и прогоните тесты:
 
 ```bash
-git clone https://github.com/ikeniborn/mcp-ai-wiki.git
-cd mcp-ai-wiki
+git clone https://github.com/ikeniborn/iwiki-mcp.git
+cd iwiki-mcp
 uv sync --extra dev
 uv run pytest -q
 ```

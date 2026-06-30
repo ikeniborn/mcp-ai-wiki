@@ -15,8 +15,8 @@ Requires Python `>=3.10`. The recommended tool is [`uv`](https://docs.astral.sh/
 iwiki-mcp is **not published to PyPI yet**, so install from a local checkout. Clone the repo and run this from the repo root:
 
 ```bash
-git clone https://github.com/ikeniborn/mcp-ai-wiki.git
-cd mcp-ai-wiki
+git clone https://github.com/ikeniborn/iwiki-mcp.git
+cd iwiki-mcp
 uv tool install .
 # or
 pipx install .
@@ -31,8 +31,8 @@ Once the package is published, a global install will be a one-liner — `uv tool
 Clone, sync dependencies (including the `dev` extra), and run the tests:
 
 ```bash
-git clone https://github.com/ikeniborn/mcp-ai-wiki.git
-cd mcp-ai-wiki
+git clone https://github.com/ikeniborn/iwiki-mcp.git
+cd iwiki-mcp
 uv sync --extra dev
 uv run pytest -q
 ```
