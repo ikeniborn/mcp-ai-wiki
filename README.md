@@ -6,12 +6,20 @@ iwiki-mcp is a shared, git-synced wiki base split into domains and queried over 
 
 ## Install
 
-Install once, globally:
+For a published package, install once globally:
 
 ```bash
 uv tool install iwiki-mcp
 # or
 pipx install iwiki-mcp
+```
+
+From a local checkout before publication, run this from the repo root:
+
+```bash
+uv tool install .
+# or
+pipx install .
 ```
 
 iwiki-mcp requires an OpenAI-compatible embeddings endpoint. Set `IWIKI_LLM_BASE_URL` and `IWIKI_LLM_KEY` in the MCP client environment.
@@ -139,10 +147,10 @@ wiki_bind(read=["backend", "frontend"], write="backend")
 | `wiki_read_page` | Read one Markdown page by domain and slug. |
 | `wiki_list_pages` | List page slugs and files in a domain. |
 | `wiki_related` | Return related sections for a section id within one domain. |
-| `wiki_write_page` | Validate and write a new page, index the domain, and auto-commit when the base is a git repo. |
+| `wiki_write_page` | Validate and write a new page, index the domain, and return whether the base auto-commit succeeded. |
 | `wiki_index` | Rebuild one domain index, defaulting to the bound write domain when omitted. |
 | `wiki_list_domains` | List visible domain directories in the base with index sizes. |
-| `wiki_create_domain` | Create a domain directory with `.iwiki/` metadata and auto-commit when possible. |
+| `wiki_create_domain` | Create a domain directory with `.iwiki/` metadata and return whether the base auto-commit succeeded. |
 | `wiki_bind` | Write or update `.iwiki.toml` for the current project after validating domains. |
 | `wiki_status` | Show resolved base, project directory, read domains, write domain, and available domains. |
 | `wiki_lint` | Report domain health, including broken links, orphans, stale pages, and section gaps. |
@@ -154,7 +162,7 @@ The server also exposes the MCP resource `iwiki://authoring-rules` for page-stru
 
 ## Git sync of the base
 
-When `IWIKI_BASE_DIR` is a git repository, `wiki_write_page` and `wiki_create_domain` stage and commit the base after successful changes. If the base is not a git repo, the tools return a warning and keep the filesystem changes local.
+When `IWIKI_BASE_DIR` is a git repository, `wiki_write_page` and `wiki_create_domain` stage and commit the base after successful changes. If the base is not a git repo, the write or create still succeeds on disk and the tool response returns `committed: false`. Use `wiki_sync`, `wiki_status`, or git commands in the base repo to diagnose repository and remote setup.
 
 Use `wiki_sync` to share the base:
 
@@ -162,7 +170,7 @@ Use `wiki_sync` to share the base:
 wiki_sync()
 ```
 
-`wiki_sync` runs `git pull --rebase` and then `git push` in the base. If a rebase conflict involves generated index files, treat the index as disposable: resolve by regenerating the affected domain with `wiki_index`, then run `wiki_sync` again.
+`wiki_sync` runs `git pull --rebase` and then `git push` in the base. If `pull --rebase` conflicts, `wiki_sync` aborts the rebase and returns an error with a hint. Resolve the conflict manually in the base repo. If generated index files are involved, regenerate the affected domain indexes with `wiki_index`, commit the regenerated files in the base repo if needed, then run `wiki_sync` again.
 
 ## Quick start
 
