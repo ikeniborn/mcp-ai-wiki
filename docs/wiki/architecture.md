@@ -16,7 +16,7 @@ A wiki base is a directory (ideally a git repo) whose immediate subdirectories a
 On write, `wiki_write_page` validates structure, persists the page, appends an ingest-log record, then re-indexes the domain (chunk → embed → quantize → JSONL). On query, `wiki_search` resolves the in-scope domains and runs hybrid vector + lexical retrieval merged across them. Both paths fail soft and return JSON. See [[indexing#Index domain]] and [[retrieval#Hybrid search]].
 
 ## Entry point
-`pyproject.toml` declares the console script `iwiki-mcp = iwiki_mcp.server:main`. `main()` parses an optional `--project DIR` (which sets `IWIKI_PROJECT_DIR`) and then calls `mcp.run()`, a `FastMCP("iwiki")` instance speaking MCP over stdio. The server is not a daemon; it lives for the client session that spawned it.
+`pyproject.toml` declares the console script `iwiki-mcp = iwiki_mcp.server:main`. `main()` parses an optional `--project DIR` (which sets `IWIKI_PROJECT_DIR`) and then calls `mcp.run()`, a `FastMCP("iwiki")` instance speaking MCP over stdio. The server is not a daemon; it lives for the client session that spawned it. Installing the package and registering it in Claude Code or Codex is covered in [[installation#Overview]].
 
 ## Dependencies
 Requires Python `>=3.10`. Runtime deps: `mcp>=1.2.0` (FastMCP), `httpx` (embeddings HTTP), `pathspec` (`.iwikiignore`), `numpy` (vector math), and `tomli` only on Python `<3.11` (else stdlib `tomllib`). Build backend is `hatchling`; tests use `pytest` with `pytest-asyncio`.

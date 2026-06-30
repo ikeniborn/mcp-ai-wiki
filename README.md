@@ -1,61 +1,104 @@
 # iwiki-mcp
 
+*Русская версия: [docs/README.ru.md](docs/README.ru.md).*
+
 ## What it is
 
 iwiki-mcp is a shared, git-synced wiki base split into domains and queried over MCP from Codex and Claude Code. The agent authors Markdown pages; the stdio MCP server stores them in the base, builds indexes, searches across bound domains, and returns the matching wiki context.
 
 ## Install
 
-For a published package, install once globally:
+Requires Python `>=3.10`. The recommended tool is [`uv`](https://docs.astral.sh/uv/); `pipx` works as a drop-in alternative.
+
+### As a global tool (recommended for use)
+
+iwiki-mcp is **not published to PyPI yet**, so install from a local checkout. Clone the repo and run this from the repo root:
 
 ```bash
-uv tool install iwiki-mcp
-# or
-pipx install iwiki-mcp
-```
-
-From a local checkout before publication, run this from the repo root:
-
-```bash
+git clone https://github.com/ikeniborn/mcp-ai-wiki.git
+cd mcp-ai-wiki
 uv tool install .
 # or
 pipx install .
 ```
 
-iwiki-mcp requires an OpenAI-compatible embeddings endpoint. Set `IWIKI_LLM_BASE_URL` and `IWIKI_LLM_KEY` in the MCP client environment.
+This puts an `iwiki-mcp` executable on your `PATH` (e.g. `~/.local/bin/iwiki-mcp`), which is what the MCP client spawns. Verify with `iwiki-mcp --help`.
+
+Once the package is published, a global install will be a one-liner — `uv tool install iwiki-mcp` (or `pipx install iwiki-mcp`). Until then those commands fail with `No matching distribution found for iwiki-mcp`; use the local-checkout install above.
+
+### From source (development)
+
+Clone, sync dependencies (including the `dev` extra), and run the tests:
+
+```bash
+git clone https://github.com/ikeniborn/mcp-ai-wiki.git
+cd mcp-ai-wiki
+uv sync --extra dev
+uv run pytest -q
+```
+
+`uv run iwiki-mcp` then runs the server from the checkout without a global install.
+
+### Requirements
+
+iwiki-mcp requires an OpenAI-compatible embeddings endpoint. Set `IWIKI_LLM_BASE_URL` and `IWIKI_LLM_KEY` in the MCP client environment (see [Register in Claude Code](#register-in-claude-code) / [Register in Codex](#register-in-codex)).
 
 The MCP client spawns `iwiki-mcp` over stdio at session start. It is not a daemon; it lives for the client session.
 
 ## Register in Claude Code
 
-Add this to `.mcp.json` in the project, or register the same command and env with `claude mcp add`:
+Step by step:
 
-```json
-{
-  "mcpServers": {
-    "iwiki": {
-      "command": "iwiki-mcp",
-      "env": {
-        "IWIKI_LLM_BASE_URL": "https://.../v1",
-        "IWIKI_LLM_KEY": "...",
-        "IWIKI_BASE_DIR": "/home/user/wiki"
-      }
-    }
-  }
-}
-```
+1. **Confirm the executable resolves.** `iwiki-mcp --help` should print usage. If not, the global install did not land on `PATH` — reinstall (`uv tool install .`) or use `uv run iwiki-mcp` as the command.
+2. **Register the server.** Either run the CLI from the project root:
 
-Keep `IWIKI_LLM_KEY` in a user-level or local config, not in a committed project file.
+   ```bash
+   claude mcp add iwiki \
+     --env IWIKI_LLM_BASE_URL=https://.../v1 \
+     --env IWIKI_LLM_KEY=... \
+     --env IWIKI_BASE_DIR=/home/user/wiki \
+     -- iwiki-mcp
+   ```
+
+   or add the same block to `.mcp.json` in the project root by hand:
+
+   ```json
+   {
+     "mcpServers": {
+       "iwiki": {
+         "command": "iwiki-mcp",
+         "env": {
+           "IWIKI_LLM_BASE_URL": "https://.../v1",
+           "IWIKI_LLM_KEY": "...",
+           "IWIKI_BASE_DIR": "/home/user/wiki"
+         }
+       }
+     }
+   }
+   ```
+
+3. **Verify.** Run `claude mcp list` — `iwiki` should show as connected. Inside a session, `/mcp` lists the `wiki_*` tools.
+4. **Keep secrets out of git.** Put `IWIKI_LLM_KEY` (and usually `IWIKI_LLM_BASE_URL`) in a user-level or `.local` config, not in a committed `.mcp.json`.
+
+The client launches the server with `cwd` at the project root, so `.iwiki.toml` (see [Bind a project](#bind-a-project)) is picked up automatically.
 
 ## Register in Codex
 
-Add this to `~/.codex/config.toml`:
+Step by step:
 
-```toml
-[mcp_servers.iwiki]
-command = "iwiki-mcp"
-env = { IWIKI_LLM_BASE_URL = "https://.../v1", IWIKI_LLM_KEY = "...", IWIKI_BASE_DIR = "/home/user/wiki" }
-```
+1. **Confirm the executable resolves:** `iwiki-mcp --help`.
+2. **Add the server** to `~/.codex/config.toml`:
+
+   ```toml
+   [mcp_servers.iwiki]
+   command = "iwiki-mcp"
+   env = { IWIKI_LLM_BASE_URL = "https://.../v1", IWIKI_LLM_KEY = "...", IWIKI_BASE_DIR = "/home/user/wiki" }
+   ```
+
+   To run from a source checkout instead of a global install, use `command = "uv"` with `args = ["run", "iwiki-mcp", "--project", "/abs/path/to/project"]`.
+3. **Restart Codex** so it re-reads `config.toml`, then start a session in the project. The `wiki_*` tools become available.
+
+Codex does not set the server `cwd` to your project, so pass `iwiki-mcp --project /abs/path/to/project` (or set `IWIKI_PROJECT_DIR` in `env`) when the project root differs from where Codex launches — that is how `.iwiki.toml` is resolved.
 
 ## The base and domains
 
@@ -100,6 +143,22 @@ wiki_bind(read=["backend", "frontend"], write="backend")
 
 `wiki_bind` validates that every provided read and write domain already exists. Create missing domains with `wiki_create_domain` first.
 
+## Teach the agent to use iwiki
+
+Registering the server exposes the tools, but the agent still needs instructions on *when* to call them. The repo ships ready-made snippets in [`templates/`](templates):
+
+- `templates/CLAUDE.md.snippet` — append to the project's `CLAUDE.md` (Claude Code).
+- `templates/AGENTS.md.snippet` — append to the project's `AGENTS.md` (Codex).
+
+Both carry the same guidance: search before a task, bootstrap a write-target, author pages after functionality changes, and `wiki_sync` at end of session. Append the matching snippet once per project:
+
+```bash
+cat templates/CLAUDE.md.snippet >> CLAUDE.md   # Claude Code
+cat templates/AGENTS.md.snippet >> AGENTS.md   # Codex
+```
+
+The snippets reference `.iwiki.toml`, so bind the project (above) first.
+
 ## Env reference
 
 **Required**
@@ -143,7 +202,7 @@ wiki_bind(read=["backend", "frontend"], write="backend")
 
 | Tool | What it does |
 |---|---|
-| `wiki_search` | Search bound domains with `hybrid`, `vector`, or `lexical` mode; accepts explicit domains, `k`, and threshold overrides. |
+| `wiki_search` | Search with `hybrid` (default), `vector`, or `lexical` mode. `scope` selects domains: `project` (default, the bound `read` set) or `all` (every domain in the base); an explicit `domains` list overrides `scope`. Accepts `k` and threshold overrides. |
 | `wiki_read_page` | Read one Markdown page by domain and slug. |
 | `wiki_list_pages` | List page slugs and files in a domain. |
 | `wiki_related` | Return related sections for a section id within one domain. |
@@ -181,7 +240,7 @@ wiki_sync()
 wiki_create_domain(name="backend")
 ```
 
-3. Bind the project:
+3. Bind the project, and append the agent snippet (see [Teach the agent to use iwiki](#teach-the-agent-to-use-iwiki)):
 
 ```text
 wiki_bind(read=["backend"], write="backend")
