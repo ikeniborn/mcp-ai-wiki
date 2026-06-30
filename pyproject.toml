@@ -1,0 +1,30 @@
+[project]
+name = "iwiki-mcp"
+version = "0.1.0"
+description = "MCP server for a shared, git-synced wiki knowledge base split into domains"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "mcp>=1.2.0",
+    "httpx>=0.27",
+    "pathspec>=0.12",
+    "numpy>=1.26",
+]
+
+[project.scripts]
+iwiki-mcp = "iwiki_mcp.server:main"
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/iwiki_mcp"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
