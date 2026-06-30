@@ -32,7 +32,7 @@ def test_auto_commit_pathspec_excludes_sibling_domain(tmp_path):
     assert "beta/b.md" not in committed
     # beta is still untracked, not swept into the commit
     porcelain = subprocess.run(
-        ["git", "status", "--porcelain"],
+        ["git", "status", "--porcelain", "-uall"],
         cwd=tmp_path, capture_output=True, text=True).stdout
     assert "beta/b.md" in porcelain
 
