@@ -1,3 +1,17 @@
+---
+chain:
+  intent: null
+review:
+  spec_hash: c01da1e37103f3d0
+  last_run: 2026-06-30
+  phases:
+    structure:    { status: passed }
+    coverage:     { status: passed }
+    clarity:      { status: passed }
+    consistency:  { status: passed }
+  findings: []
+  verdict: pass
+---
 # iwiki MCP Server — Design
 
 **Date:** 2026-06-30
