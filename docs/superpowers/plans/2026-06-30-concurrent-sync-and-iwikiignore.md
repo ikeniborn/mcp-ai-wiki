@@ -1,6 +1,6 @@
 ---
 review:
-  plan_hash: 7e8052a5e6a53241
+  plan_hash: 02fa3909c2209f4a
   spec_hash: 416bdf66544dc25a
   last_run: 2026-06-30
   phases:
@@ -14,7 +14,7 @@ review:
       phase: coverage
       severity: WARNING
       section: "Task 1, Step 2 (tests/test_lock.py)"
-      section_hash: 8f3b1c4e9a2d6705
+      section_hash: 2ae08cf656e01b20
       fragment: "test_base_lock_second_acquire_times_out_while_held"
       text: >-
         The spec Testing section requires "base_lock acquires/releases; a second acquire
@@ -26,13 +26,13 @@ review:
         Add a short assertion (thread- or sequence-based) that after the first lock is
         released a second base_lock(base).acquire() succeeds, to cover the spec's
         "blocks then succeeds" requirement.
-      verdict: open
-      verdict_at: null
+      verdict: fixed
+      verdict_at: 2026-06-30
     - id: F-002
       phase: verifiability
       severity: INFO
       section: "Task 6, Step 1"
-      section_hash: 1d7a0e5c8b6f9243
+      section_hash: ad14aed224df7351
       fragment: "# via the iwiki:iwiki-ingest skill, per CLAUDE.md docs-upkeep"
       text: >-
         Task 6 Step 1's ```bash``` fenced block contains only a comment, no runnable
@@ -44,8 +44,12 @@ review:
         Drop the empty code fence and keep the skill-invocation instruction in prose,
         or replace the comment with the literal skill invocations to keep the step's
         command block runnable.
-      verdict: open
-      verdict_at: null
+      verdict: fixed
+      verdict_at: 2026-06-30
+result_check:
+  verdict: OK
+  plan_hash: 02fa3909c2209f4a
+  last_run: 2026-07-01
 chain:
   intent: null
   spec: docs/superpowers/specs/2026-06-30-concurrent-sync-and-iwikiignore-design.md

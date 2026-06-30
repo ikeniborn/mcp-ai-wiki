@@ -77,8 +77,8 @@ body:has(#tab-result:checked) label[for="tab-result"]{ color:var(--accent); bord
 <input type="checkbox" id="theme-toggle" hidden>
 <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
 <input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden>
-<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden checked>
-<input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden checked>
 <label for="theme-toggle" class="theme-btn" title="Переключить тему">🌙 / ☀️</label>
 <header>
   <h1>Цепочка IDD→SDD: concurrent-sync-and-iwikiignore</h1>
@@ -271,12 +271,12 @@ body:has(#tab-result:checked) label[for="tab-result"]{ color:var(--accent); bord
 <section class="tab-pane" id="pane-plan">
 
   <h2>1. Резюме плана</h2>
-  <p class="legend">Файл: <code>docs/superpowers/plans/2026-06-30-concurrent-sync-and-iwikiignore.md</code> &nbsp;·&nbsp; plan_hash: <code>7e8052a5e6a53241</code> &nbsp;·&nbsp; spec_hash: <code>416bdf66544dc25a</code> (совпадает с записанным в спеке — спека не менялась с момента check-spec OK).</p>
+  <p class="legend">Файл: <code>docs/superpowers/plans/2026-06-30-concurrent-sync-and-iwikiignore.md</code> &nbsp;·&nbsp; plan_hash: <code>02fa3909c2209f4a</code> (prev: <code>7e8052a5e6a53241</code>) &nbsp;·&nbsp; spec_hash: <code>416bdf66544dc25a</code> (совпадает с записанным в спеке) &nbsp;·&nbsp; повторная проверка после правки тела (F-001, F-002).</p>
 
   <table>
     <thead><tr><th style="width:20%">Задача / шаг</th><th>Что делает</th><th style="width:34%">Definition of Done (DoD)</th></tr></thead>
     <tbody>
-      <tr><td>Задача 1 — <code>lock.py</code></td><td>Создать <code>base_lock(base, timeout=15.0)→FileLock</code>, lock-файл <code>base/.iwiki/lock</code> (директория обеспечивается); добавить зависимость <code>filelock&gt;=3.12</code> в <code>pyproject.toml</code>.</td><td><code>tests/test_lock.py</code> — 2 теста PASS: создаёт <code>.iwiki/</code> и блокирует; второй захват при удержании → <code>filelock.Timeout</code>.</td></tr>
+      <tr><td>Задача 1 — <code>lock.py</code></td><td>Создать <code>base_lock(base, timeout=15.0)→FileLock</code>, lock-файл <code>base/.iwiki/lock</code> (директория обеспечивается); добавить зависимость <code>filelock&gt;=3.12</code> в <code>pyproject.toml</code>.</td><td><code>tests/test_lock.py</code> — 3 теста PASS: создаёт <code>.iwiki/</code> и блокирует; второй захват при удержании → <code>filelock.Timeout</code>; второй захват <strong>после</strong> освобождения — успех.</td></tr>
       <tr><td>Задача 2 — <code>auto_commit</code></td><td>Параметры <code>pathspec</code>/<code>timeout</code>; <code>base_lock</code> вокруг add+status+commit; доменно-ограниченный staging <code>git add -- &lt;pathspec&gt;</code>; <code>pathspec=None</code> → прежнее <code>add -A</code> (back-compat); Timeout → warning-dict.</td><td><code>test_auto_commit_pathspec_excludes_sibling_domain</code> PASS + существующий <code>tests/test_sync.py</code> PASS (путь <code>-A</code> сохранён).</td></tr>
       <tr><td>Задача 3 — <code>sync</code></td><td>Параметры <code>timeout</code>/<code>push_retries</code>; <code>base_lock</code> вокруг pull/push; helper <code>_is_non_ff</code>; retry <code>pull --rebase</code>+<code>push</code> при non-fast-forward; rebase-abort и прежний error/hint сохранены.</td><td><code>test_sync_push_retry_on_non_fast_forward</code> PASS + <code>tests/test_sync.py</code> PASS (no-remote warning, conflict-error сохранён).</td></tr>
       <tr><td>Задача 4 — <code>ignore.py</code></td><td><code>ensure_iwikiignore</code> (seed из <code>.gitignore</code> + секретные дефолты, идемпотентно); <code>load_project_ignore</code>; <code>is_ignored</code> (relpath внутри проекта / basename снаружи). Переиспользует <code>engine.config._load_ignore</code>.</td><td><code>tests/test_iwikiignore.py</code> — 6 тестов PASS.</td></tr>
@@ -338,7 +338,7 @@ body:has(#tab-result:checked) label[for="tab-result"]{ color:var(--accent); bord
   </table>
 
   <h3>Покрытие требований</h3>
-  <p class="legend">Каждое требование спеки закрыто ≥1 шагом; «лишних» шагов нет. Одно <em>тестовое</em> требование §Testing покрыто частично (см. F-001).</p>
+  <p class="legend">Каждое требование спеки закрыто ≥1 шагом; «лишних» шагов нет. Тестовое требование §Testing «blocks then succeeds» теперь покрыто полностью (F-001 исправлен — добавлен <code>test_base_lock_acquired_after_holder_releases</code>).</p>
   <table>
     <thead><tr><th style="width:30%">Требование спеки</th><th>Шаг(и) плана</th></tr></thead>
     <tbody>
@@ -363,9 +363,9 @@ body:has(#tab-result:checked) label[for="tab-result"]{ color:var(--accent); bord
     <thead><tr><th>Фаза</th><th>Статус</th></tr></thead>
     <tbody>
       <tr><td>structure</td><td><span class="badge b-ok">passed</span></td></tr>
-      <tr><td>coverage</td><td><span class="badge b-ok">passed</span> <span class="legend">(1 WARNING)</span></td></tr>
+      <tr><td>coverage</td><td><span class="badge b-ok">passed</span> <span class="legend">(F-001 исправлен)</span></td></tr>
       <tr><td>dependencies</td><td><span class="badge b-ok">passed</span></td></tr>
-      <tr><td>verifiability</td><td><span class="badge b-ok">passed</span> <span class="legend">(1 INFO)</span></td></tr>
+      <tr><td>verifiability</td><td><span class="badge b-ok">passed</span> <span class="legend">(F-002 исправлен)</span></td></tr>
       <tr><td>consistency</td><td><span class="badge b-ok">passed</span></td></tr>
     </tbody>
   </table>
@@ -379,18 +379,18 @@ body:has(#tab-result:checked) label[for="tab-result"]{ color:var(--accent); bord
         <td><span class="badge b-warn">WARNING</span></td>
         <td>Task 1, Step 2 (<code>tests/test_lock.py</code>)</td>
         <td><code>test_base_lock_second_acquire_times_out_while_held</code></td>
-        <td>Спека (раздел Testing) требует «second acquire while held <strong>blocks then succeeds</strong>». Тест плана покрывает только половину — «блокирует/таймаут при удержании», но не «затем успешно захватывает <strong>после освобождения</strong>».</td>
-        <td>Добавить короткую проверку (через поток или последовательность), что после release второй <code>base_lock(base).acquire()</code> успешен.</td>
-        <td><span class="badge b-open">open</span></td>
+        <td>Спека (раздел Testing) требует «second acquire while held <strong>blocks then succeeds</strong>». Тест плана покрывал только половину — «блокирует/таймаут при удержании», но не «затем успешно захватывает <strong>после освобождения</strong>».</td>
+        <td>Добавить короткую проверку (через поток или последовательность), что после release второй <code>base_lock(base).acquire()</code> успешен. <strong>Внесено:</strong> добавлен тест <code>test_base_lock_acquired_after_holder_releases</code>; Шаг 5 ожидает 3 теста.</td>
+        <td><span class="badge b-ok">fixed</span> (2026-06-30)</td>
       </tr>
       <tr>
         <td>F-002</td>
         <td><span class="badge b-warn">INFO</span></td>
         <td>Task 6, Step 1</td>
         <td><code># via the iwiki:iwiki-ingest skill, per CLAUDE.md docs-upkeep</code></td>
-        <td>В шаге пустой <code>```bash```</code> блок содержит только комментарий, без исполняемой команды; реальная инструкция (<code>iwiki:iwiki-ingest</code> для трёх источников, затем <code>/iwiki-lint</code>) дана в прозе. DoD проверяем, поэтому это косметика.</td>
-        <td>Убрать пустой код-фенс и оставить инструкцию в прозе, либо вписать литеральные вызовы скиллов.</td>
-        <td><span class="badge b-open">open</span></td>
+        <td>В шаге пустой <code>```bash```</code> блок содержал только комментарий, без исполняемой команды; реальная инструкция (<code>iwiki:iwiki-ingest</code> для трёх источников, затем <code>/iwiki-lint</code>) была дана в прозе. DoD проверяем, поэтому это косметика.</td>
+        <td>Убрать пустой код-фенс и оставить инструкцию в прозе, либо вписать литеральные вызовы скиллов. <strong>Внесено:</strong> пустой fence заменён нумерованным списком литеральных вызовов <code>iwiki:iwiki-ingest</code> (×3) + <code>/iwiki-lint</code>.</td>
+        <td><span class="badge b-ok">fixed</span> (2026-06-30)</td>
       </tr>
     </tbody>
   </table>
@@ -400,9 +400,9 @@ body:has(#tab-result:checked) label[for="tab-result"]{ color:var(--accent); bord
     <thead><tr><th>Метрика</th><th>Значение</th></tr></thead>
     <tbody>
       <tr><td>CRITICAL open</td><td>0</td></tr>
-      <tr><td>WARNING open</td><td>1 (F-001)</td></tr>
-      <tr><td>INFO open</td><td>1 (F-002)</td></tr>
-      <tr><td>Итоговый вердикт</td><td><span class="badge b-ok">OK</span> — нет открытых CRITICAL; все 5 фаз passed. F-001 (WARNING) и F-002 (INFO) не блокируют.</td></tr>
+      <tr><td>WARNING open</td><td>0 (F-001 fixed)</td></tr>
+      <tr><td>INFO open</td><td>0 (F-002 fixed)</td></tr>
+      <tr><td>Итоговый вердикт</td><td><span class="badge b-ok">OK</span> — нет открытых находок; все 5 фаз passed. F-001 (WARNING) и F-002 (INFO) устранены правкой тела (verdict: fixed).</td></tr>
     </tbody>
   </table>
 
@@ -415,7 +415,125 @@ body:has(#tab-result:checked) label[for="tab-result"]{ color:var(--accent); bord
 
 <!-- TAB:result START -->
 <section class="tab-pane" id="pane-result">
-  <p class="note">Этап ещё не проверен.</p>
+
+  <h2>1. Резюме сверки</h2>
+  <p class="legend">
+    Сверка результата выполнения с цепочкой IDD→SDD. База diff: <code>git diff 16a1c06..HEAD</code> (12 файлов изменено).
+    Рабочее дерево содержит только мета-файлы процесса (<code>docs/TODO.md</code>, plan, report, spec, <code>uv.lock</code>) — фичевый код закоммичен в <code>16a1c06..HEAD</code>.
+  </p>
+  <table>
+    <thead><tr><th style="width:18%">Звено</th><th>Документ / база</th><th style="width:18%">Статус</th></tr></thead>
+    <tbody>
+      <tr><td>Intent</td><td>отсутствует (<code>chain.intent: null</code>)</td><td><span class="badge b-warn">n/a</span></td></tr>
+      <tr><td>Spec</td><td><code>docs/superpowers/specs/2026-06-30-concurrent-sync-and-iwikiignore-design.md</code></td><td><span class="badge b-ok">check-spec OK</span></td></tr>
+      <tr><td>Plan</td><td><code>docs/superpowers/plans/2026-06-30-concurrent-sync-and-iwikiignore.md</code> · plan_hash <code>02fa3909c2209f4a</code></td><td><span class="badge b-ok">check-plan OK</span></td></tr>
+      <tr><td>Diff base</td><td><code>git diff 16a1c06..HEAD</code></td><td>12 файлов</td></tr>
+    </tbody>
+  </table>
+  <div class="note">
+    <strong>Цель плана:</strong> сделать общую git-базу безопасной при параллельных проектах (межпроцессный <code>filelock</code> на базе,
+    коммиты с <code>pathspec</code> по домену, retry <code>push</code> при non-fast-forward) и добавить фильтр путей <code>.iwikiignore</code>
+    как гейт на аргумент <code>source=</code> в <code>wiki_write_page</code>, с авто-созданием при <code>create_domain</code>/<code>bind</code>.
+  </div>
+
+  <h2>2. Покрытие шагов плана</h2>
+  <table>
+    <thead><tr><th>Метрика</th><th>Значение</th></tr></thead>
+    <tbody>
+      <tr><td>DONE</td><td>6 / 6 задач (все шаги)</td></tr>
+      <tr><td>PARTIAL</td><td>0</td></tr>
+      <tr><td>MISSING</td><td>0</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Соответствие задача → diff</h3>
+  <table>
+    <thead><tr><th style="width:18%">Задача</th><th>Найдено в diff</th><th style="width:12%">Статус</th></tr></thead>
+    <tbody>
+      <tr><td>T1 — <code>lock.py</code></td><td><code>src/iwiki_mcp/lock.py</code> и <code>pyproject.toml</code> (<code>filelock&gt;=3.12</code>) совпадают с планом дословно. <code>tests/test_lock.py</code> — 3 теста, включая <code>test_base_lock_acquired_after_holder_releases</code> (закрывает F-001 «blocks then succeeds»).</td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td>T2 — <code>auto_commit</code></td><td><code>auto_commit(base, message, pathspec=None, timeout=15.0)</code> под <code>base_lock</code>, <code>git add -- &lt;pathspec&gt;</code>, <code>Timeout</code> → <code>{"committed": False, "warning": "base busy: lock timeout"}</code>. Совпадает с планом.</td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td>T3 — <code>sync</code></td><td><code>sync(base, timeout=15.0, push_retries=3)</code> под <code>base_lock</code>, helper <code>_is_non_ff</code>, retry-цикл, rebase-abort сохранён. Совпадает с планом.</td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td>T4 — <code>ignore.py</code></td><td><code>ensure_iwikiignore</code>/<code>load_project_ignore</code>/<code>is_ignored</code> совпадают с планом дословно. <code>tests/test_iwikiignore.py</code> — 6 тестов.</td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td>T5 — <code>server.py</code></td><td><code>import ignore</code>; гейт <code>source=</code> до транзакции; <code>pathspec=valid_domain</code> в обоих вызовах <code>auto_commit</code>; <code>ensure_iwikiignore</code> в <code>wiki_create_domain</code> и <code>wiki_bind</code>. <code>tests/test_server_iwikiignore.py</code> — 4 теста. Совпадает с планом.</td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td>T6 — docs upkeep</td><td>Обновлены <code>docs/wiki/architecture.md</code>, <code>git-sync.md</code>, <code>mcp-server.md</code> (base_lock, доменные коммиты, push-retry, гейт <code>.iwikiignore</code> + авто-создание). Lint: 0 broken, 0 orphans.</td><td><span class="badge b-ok">DONE</span></td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Находки</h2>
+  <table>
+    <thead><tr><th>severity</th><th>Шаг</th><th>Plan</th><th>Diff</th><th>Fix options</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><span class="badge b-warn">INFO</span></td>
+        <td>T1 / <code>pyproject.toml</code></td>
+        <td>Шага про версию пакета нет.</td>
+        <td><code>version</code> поднят <code>0.1.0 → 0.1.1</code>.</td>
+        <td>Косметика; допустимо при релизе фичи. Действий не требуется.</td>
+      </tr>
+      <tr>
+        <td><span class="badge b-warn">INFO</span></td>
+        <td>T3 / <code>sync.py</code></td>
+        <td>Поясняющий комментарий не предписан дословно.</td>
+        <td>Добавлен комментарий «only reachable if push_retries &lt;= 0…».</td>
+        <td>Безвреден; действий не требуется.</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="note">
+    <strong>Точная коррекция в тесте T2:</strong> <code>test_auto_commit_pathspec_excludes_sibling_domain</code> использует
+    <code>git status --porcelain -uall</code> вместо простого <code>--porcelain</code> из примера плана: porcelain сворачивает
+    untracked-каталог в <code>?? beta/</code>, а <code>-uall</code> перечисляет <code>beta/b.md</code> по пути. Это <strong>верная
+    реализация замысла</strong> плана (проверить, что соседний домен остаётся untracked), исправляющая неточность примера.
+  </div>
+  <div class="note">
+    <strong>Расположение docs (T6):</strong> план называл <code>indexing.md</code>/<code>architecture.md</code>, но фактические страницы
+    вики — <code>git-sync.md</code> и <code>mcp-server.md</code>; правки помещены на корректные существующие страницы — верная реализация
+    замысла docs-upkeep («обновить затронутую страницу»).
+  </div>
+
+  <h2>4. Покрытие intent / spec</h2>
+  <table>
+    <thead><tr><th>Источник</th><th>Покрыто</th></tr></thead>
+    <tbody>
+      <tr><td>Desired Outcomes (intent)</td><td><span class="badge b-warn">n/a</span> — intent отсутствует в цепочке (<code>chain.intent: null</code>)</td></tr>
+      <tr><td>Spec requirements</td><td><span class="badge b-ok">10 / 10</span></td></tr>
+    </tbody>
+  </table>
+  <p class="legend">
+    Покрыты: lock на <code>base/.iwiki/lock</code>; <code>auto_commit</code> lock+pathspec; <code>sync</code> lock+push-retry (rebase-abort сохранён);
+    <code>ensure_iwikiignore</code> (seed из <code>.gitignore</code>+секреты, идемпотентность); <code>load_project_ignore</code>;
+    <code>is_ignored</code> (relpath внутри / basename снаружи); гейт <code>source=</code> до транзакции; <code>pathspec</code> в обоих call sites;
+    <code>ensure</code> в <code>create_domain</code> И <code>bind</code>; зависимость <code>filelock</code>; тайминги как аргументы функций (не через <code>Config.load</code>); docs upkeep.
+    Out of scope соблюдён (same-domain concurrent writes, индексация исходников, удаление из индекса — не реализованы, by design).
+  </p>
+
+  <h2>5. Избыточные изменения</h2>
+  <table>
+    <thead><tr><th>Файл</th><th>Характер</th><th>severity</th></tr></thead>
+    <tbody>
+      <tr><td><code>pyproject.toml</code></td><td>version bump <code>0.1.0 → 0.1.1</code> — нет соответствующего шага плана.</td><td><span class="badge b-warn">INFO</span></td></tr>
+      <tr><td>мета-файлы рабочего дерева</td><td><code>docs/TODO.md</code>, plan, report html, spec, <code>uv.lock</code> — артефакты процесса проверки/check-команд, не код.</td><td>—</td></tr>
+    </tbody>
+  </table>
+
+  <h2>6. Сводка</h2>
+  <table>
+    <thead><tr><th>Метрика</th><th>Значение</th></tr></thead>
+    <tbody>
+      <tr><td>CRITICAL</td><td>0</td></tr>
+      <tr><td>WARNING</td><td>0</td></tr>
+      <tr><td>INFO</td><td>2 (косметические; действий не требуют)</td></tr>
+      <tr><td>Тесты</td><td><code>uv run pytest -q</code> → <strong>119 passed</strong></td></tr>
+      <tr><td>Итоговый вердикт</td><td><span class="badge b-ok">OK</span> — 0 MISSING шагов, 0 CRITICAL/WARNING; все 6 задач реализованы, spec покрыт 10/10, тесты зелёные.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <strong>Цепочка:</strong> (intent: нет) → spec (OK) → plan (OK) → <strong>result (OK)</strong>. &nbsp;
+    <code>intent_path = null</code>; spec: <code>2026-06-30-concurrent-sync-and-iwikiignore-design.md</code>;
+    plan_hash <code>02fa3909c2209f4a</code>.
+  </div>
+
 </section>
 <!-- TAB:result END -->
 
