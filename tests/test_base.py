@@ -108,6 +108,35 @@ def test_write_project_config_preserves_unknown_lines_and_comments(
     assert 'write = "b"' in text
 
 
+def test_write_project_config_removes_multiline_core_assignment(
+    tmp_path, monkeypatch
+):
+    b = _mkbase(tmp_path, "new")
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    monkeypatch.delenv("IWIKI_BASE_DIR", raising=False)
+    (proj / ".iwiki.toml").write_text(
+        f'base = "{b}"\n'
+        "# keep multiline\n"
+        "custom = \"value\"\n"
+        "read = [\n"
+        '  "old",\n'
+        "]\n"
+        'write = "old"\n'
+    )
+
+    base.write_project_config(str(proj), read=["new"], write="new")
+
+    text = (proj / ".iwiki.toml").read_text()
+    bind = base.resolve_binding(str(proj))
+    assert bind.read == ("new",)
+    assert bind.write == "new"
+    assert "# keep multiline" in text
+    assert 'custom = "value"' in text
+    assert '"old"' not in text
+    assert "\n]\n" not in text
+
+
 def test_index_path_uses_jsonl_index():
     assert base.index_path("/wiki", "backend").endswith(
         os.path.join(".iwiki", "index.jsonl")

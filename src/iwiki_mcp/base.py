@@ -146,6 +146,43 @@ def _top_level_key(line: str) -> str | None:
     return stripped.split("=", 1)[0].strip()
 
 
+def _multiline_string_delimiter(value: str) -> str | None:
+    stripped = value.lstrip()
+    for delimiter in ('"""', "'''"):
+        if stripped.startswith(delimiter) and stripped.count(delimiter) < 2:
+            return delimiter
+    return None
+
+
+def _core_assignment_closed(value: str, delimiter: str | None) -> bool:
+    if delimiter is not None:
+        return value.count(delimiter) >= 2
+    stripped = value.lstrip()
+    if stripped.startswith("["):
+        return value.count("[") <= value.count("]")
+    return True
+
+
+def _preserved_top_level_lines(lines: list[str]) -> list[str]:
+    preserved: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        key = _top_level_key(line)
+        if key not in {"base", "read", "write"}:
+            preserved.append(line)
+            i += 1
+            continue
+
+        value = line.split("=", 1)[1]
+        delimiter = _multiline_string_delimiter(value)
+        i += 1
+        while i < len(lines) and not _core_assignment_closed(value, delimiter):
+            value += "\n" + lines[i]
+            i += 1
+    return preserved
+
+
 def _write_preserving_unknown_config(config_path: str, config: dict[str, Any]) -> None:
     try:
         with open(config_path, encoding="utf-8") as fh:
@@ -157,11 +194,7 @@ def _write_preserving_unknown_config(config_path: str, config: dict[str, Any]) -
         (i for i, line in enumerate(original) if line.strip().startswith("[")),
         len(original),
     )
-    prefix = [
-        line
-        for line in original[:first_table]
-        if _top_level_key(line) not in {"base", "read", "write"}
-    ]
+    prefix = _preserved_top_level_lines(original[:first_table])
     suffix = original[first_table:]
     lines = [*prefix, *_core_config_lines(config), *suffix]
 

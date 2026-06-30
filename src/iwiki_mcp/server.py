@@ -236,7 +236,6 @@ def wiki_write_page(
     try:
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(markdown)
-        stats = indexer.index_domain(cfg, bind.base, valid_domain)
         indexer.append_log(
             bind.base,
             valid_domain,
@@ -245,6 +244,7 @@ def wiki_write_page(
             page_file,
             indexer.src_hash(source) if source else None,
         )
+        stats = indexer.index_domain(cfg, bind.base, valid_domain)
     except Exception:
         try:
             os.remove(path)

@@ -1,6 +1,6 @@
 import os
 
-from iwiki_mcp import indexer, server
+from iwiki_mcp import base, indexer, server
 
 
 def _seed(tmp_path, monkeypatch, with_domain=True):
@@ -83,8 +83,37 @@ def test_write_page_removes_new_file_when_indexing_fails(tmp_path, monkeypatch):
     out = server.wiki_write_page(
         "backend",
         "auth",
-        "# Auth\n## Overview\nsummary\n",
+        "# Auth\n## Overview\nsummary\n## Flow\nlogin then token\n",
     )
 
     assert "error" in out
     assert not os.path.exists(os.path.join(b, "backend", "auth.md"))
+
+
+def test_write_page_does_not_leave_index_record_when_logging_fails(
+    tmp_path, monkeypatch
+):
+    b, _ = _seed(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        indexer,
+        "append_log",
+        lambda base, domain, op, source, page, src_hash: (_ for _ in ()).throw(
+            RuntimeError("log failed")
+        ),
+    )
+
+    out = server.wiki_write_page(
+        "backend",
+        "auth",
+        "# Auth\n## Overview\nsummary\n## Flow\nlogin then token\n",
+    )
+
+    index_path = base.index_path(b, "backend")
+    index_text = (
+        open(index_path, encoding="utf-8").read()
+        if os.path.exists(index_path)
+        else ""
+    )
+    assert "error" in out
+    assert not os.path.exists(os.path.join(b, "backend", "auth.md"))
+    assert "auth.md" not in index_text
