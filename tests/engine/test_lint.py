@@ -103,6 +103,26 @@ def test_stale_hash_mismatch_is_stale_even_if_page_newer(tmp_path):
     assert any(s["source"] == src for s in lint(wd)["stale"])
 
 
+def test_stale_resolves_domain_relative_logged_page(tmp_path):
+    wd = _wiki(tmp_path, {"a.md": "## A\nbody\n"})
+    src = tmp_path / "src.py"
+    src.write_text("new content\n", encoding="utf-8")
+    iwiki = os.path.join(wd, ".iwiki")
+    os.makedirs(iwiki, exist_ok=True)
+    rec = {
+        "op": "ingest",
+        "source": str(src),
+        "page": "a.md",
+        "src_hash": _h("old content\n"),
+    }
+    with open(os.path.join(iwiki, "log.jsonl"), "w", encoding="utf-8") as fh:
+        fh.write(json.dumps(rec) + "\n")
+
+    assert lint(wd)["stale"] == [
+        {"page": os.path.normpath(os.path.join(wd, "a.md")), "source": str(src)}
+    ]
+
+
 def test_stale_without_hash_uses_mtime(tmp_path):
     # No src_hash in the record → unchanged mtime behaviour.
     wd, src, page = _wiki_with_log(tmp_path, "## A\nbody\n", "x\n")

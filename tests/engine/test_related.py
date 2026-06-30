@@ -26,3 +26,12 @@ def test_graph_skips_unreadable_path(tmp_path):
     d = tmp_path / "weird.md"
     d.mkdir()
     assert _graph_neighbours(str(d), depth=1) == []
+
+
+def test_graph_follows_extensionless_links_beyond_first_hop(tmp_path, monkeypatch):
+    (tmp_path / "a.md").write_text("[[b]]\n", encoding="utf-8")
+    (tmp_path / "b.md").write_text("[[c]]\n", encoding="utf-8")
+    (tmp_path / "c.md").write_text("## C\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert set(_graph_neighbours("a.md", depth=2)) == {"b", "c"}

@@ -31,7 +31,7 @@ def _graph_neighbours(target_file: str, depth: int) -> list[str]:
                 base = link.split("#", 1)[0]
                 if base and base not in seen:
                     seen.add(base)
-                    nxt.append(base)
+                    nxt.append(base if base.endswith(".md") else f"{base}.md")
         frontier = nxt
     return list(seen)
 

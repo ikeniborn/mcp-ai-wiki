@@ -70,6 +70,13 @@ def _fresh(src: str, page: str, src_hash: str | None) -> bool:
     return os.path.getmtime(page) >= os.path.getmtime(src)
 
 
+def _logged_page_path(page: str, wiki_dir: str) -> str:
+    """Resolve ingest-log page paths to files in the domain wiki directory."""
+    if os.path.isabs(page):
+        return os.path.normpath(page)
+    return os.path.normpath(os.path.join(wiki_dir, page))
+
+
 def _stale(wiki_dir: str) -> list[dict]:
     """Pages whose source changed after the last ingest, via .iwiki/log.jsonl
     (content-hash with mtime fallback; no git). Deduped by page, first hit wins."""
@@ -91,13 +98,16 @@ def _stale(wiki_dir: str) -> list[dict]:
         except Exception:
             continue
         src, page = rec.get("source"), rec.get("page")
-        if not src or not page or page in seen:
+        if not src or not page:
             continue
-        if os.path.isfile(src) and os.path.isfile(page):
+        page_path = _logged_page_path(page, wiki_dir)
+        if page_path in seen:
+            continue
+        if os.path.isfile(src) and os.path.isfile(page_path):
             try:
-                if not _fresh(src, page, rec.get("src_hash")):
-                    out.append({"page": page, "source": src})
-                    seen.add(page)
+                if not _fresh(src, page_path, rec.get("src_hash")):
+                    out.append({"page": page_path, "source": src})
+                    seen.add(page_path)
             except Exception:
                 pass
     return out
