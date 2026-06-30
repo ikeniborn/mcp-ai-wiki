@@ -155,11 +155,50 @@ def wiki_read_page(domain: str, slug: str) -> dict:
     }
 
 
+@_safe
+def wiki_search(
+    query: str,
+    scope: str = "project",
+    mode: str = "hybrid",
+    domains: list[str] | None = None,
+    k: int | None = None,
+    threshold: float | None = None,
+) -> dict:
+    bind = base.resolve_binding()
+    cfg = Config.load()
+    doms = [_validate_domain(d) for d in base.resolve_scope(bind, scope, domains)]
+    if not doms:
+        return {"results": [], "hint": "no domains in scope"}
+    results = retrieval.hybrid_search(
+        cfg,
+        bind.base,
+        doms,
+        query,
+        top_k=cfg.top_k if k is None else k,
+        threshold=cfg.score_threshold if threshold is None else threshold,
+        mode=mode,
+    )
+    return {"results": results}
+
+
+@_safe
+def wiki_related(domain: str, section_id: str) -> dict:
+    from .engine.related import related
+    from .engine.store import VectorStore
+
+    bind = base.resolve_binding()
+    cfg = Config.load()
+    recs = VectorStore(base.index_path(bind.base, _validate_domain(domain))).load()
+    return related(section_id, recs, cfg.top_k, cfg.graph_depth)
+
+
 # Thin MCP wrappers; implementation functions above stay unit-testable.
 mcp.tool()(wiki_status)
 mcp.tool()(wiki_list_domains)
 mcp.tool()(wiki_list_pages)
 mcp.tool()(wiki_read_page)
+mcp.tool()(wiki_search)
+mcp.tool()(wiki_related)
 
 
 def main() -> None:
