@@ -6,6 +6,10 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from filelock import Timeout
+
+from .lock import base_lock
+
 
 def _run(base: str, *args: str, timeout: float = 30.0) -> subprocess.CompletedProcess:
     return subprocess.run(["git", "-C", base, *args], capture_output=True,
@@ -20,21 +24,26 @@ def is_git_repo(base: str) -> bool:
         return False
 
 
-def auto_commit(base: str, message: str) -> dict:
+def auto_commit(base: str, message: str, pathspec: str | None = None,
+                timeout: float = 15.0) -> dict:
     if not is_git_repo(base):
         return {"committed": False, "warning": "base is not a git repo; not committing"}
+    scope = ("--", pathspec) if pathspec else ()
     try:
-        add = _run(base, "add", "-A")
-        if add.returncode != 0:
-            return {"committed": False, "warning": add.stderr.strip()}
-        status = _run(base, "status", "--porcelain")
-        if status.returncode != 0:
-            return {"committed": False, "warning": status.stderr.strip()}
-        if not status.stdout.strip():
-            return {"committed": False, "warning": "nothing to commit"}
-        r = _run(base, "commit", "-m", message)
-        return {"committed": r.returncode == 0,
-                **({} if r.returncode == 0 else {"warning": r.stderr.strip()})}
+        with base_lock(base, timeout):
+            add = _run(base, "add", *(("--", pathspec) if pathspec else ("-A",)))
+            if add.returncode != 0:
+                return {"committed": False, "warning": add.stderr.strip()}
+            status = _run(base, "status", "--porcelain", *scope)
+            if status.returncode != 0:
+                return {"committed": False, "warning": status.stderr.strip()}
+            if not status.stdout.strip():
+                return {"committed": False, "warning": "nothing to commit"}
+            r = _run(base, "commit", "-m", message)
+            return {"committed": r.returncode == 0,
+                    **({} if r.returncode == 0 else {"warning": r.stderr.strip()})}
+    except Timeout:
+        return {"committed": False, "warning": "base busy: lock timeout"}
     except Exception as e:
         return {"committed": False, "warning": str(e)}
 
@@ -59,24 +68,39 @@ def _output(r: subprocess.CompletedProcess) -> str:
     return r.stderr.strip() or r.stdout.strip() or "git command failed"
 
 
-def sync(base: str) -> dict:
+def _is_non_ff(r: subprocess.CompletedProcess) -> bool:
+    text = (r.stderr + r.stdout).lower()
+    return any(s in text for s in ("non-fast-forward", "fetch first", "rejected"))
+
+
+def sync(base: str, timeout: float = 15.0, push_retries: int = 3) -> dict:
     if not is_git_repo(base):
         return {"pulled": False, "pushed": False, "error": "base is not a git repo"}
     try:
-        if not _has_remote(base):
-            return {"pulled": False, "pushed": False,
-                    "warning": "no git remote configured; commits stay local"}
-        pull = _run(base, "pull", "--rebase")
-        if pull.returncode != 0:
-            if _has_rebase_state(base):
-                _run(base, "rebase", "--abort")
+        with base_lock(base, timeout):
+            if not _has_remote(base):
                 return {"pulled": False, "pushed": False,
-                        "error": "pull --rebase conflict (aborted)",
-                        "hint": "resolve in the base repo, or re-run index to regenerate "
-                                "a conflicted .iwiki/index.jsonl, then sync again"}
-            return {"pulled": False, "pushed": False, "error": _output(pull)}
-        push = _run(base, "push")
-        return {"pulled": True, "pushed": push.returncode == 0,
-                **({} if push.returncode == 0 else {"warning": push.stderr.strip()})}
+                        "warning": "no git remote configured; commits stay local"}
+            for attempt in range(push_retries):
+                pull = _run(base, "pull", "--rebase")
+                if pull.returncode != 0:
+                    if _has_rebase_state(base):
+                        _run(base, "rebase", "--abort")
+                        return {"pulled": False, "pushed": False,
+                                "error": "pull --rebase conflict (aborted)",
+                                "hint": "resolve in the base repo, or re-run index to "
+                                        "regenerate a conflicted .iwiki/index.jsonl, "
+                                        "then sync again"}
+                    return {"pulled": False, "pushed": False, "error": _output(pull)}
+                push = _run(base, "push")
+                if push.returncode == 0:
+                    return {"pulled": True, "pushed": True}
+                if _is_non_ff(push) and attempt < push_retries - 1:
+                    continue
+                return {"pulled": True, "pushed": False, "warning": push.stderr.strip()}
+            # only reachable if push_retries <= 0; loop otherwise always returns inside
+            return {"pulled": True, "pushed": False, "warning": "push retries exhausted"}
+    except Timeout:
+        return {"pulled": False, "pushed": False, "warning": "base busy: lock timeout"}
     except Exception as e:
         return {"pulled": False, "pushed": False, "error": str(e)}
