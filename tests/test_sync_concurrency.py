@@ -35,3 +35,38 @@ def test_auto_commit_pathspec_excludes_sibling_domain(tmp_path):
         ["git", "status", "--porcelain"],
         cwd=tmp_path, capture_output=True, text=True).stdout
     assert "beta" in porcelain
+
+
+def test_sync_push_retry_on_non_fast_forward(tmp_path):
+    remote = tmp_path / "remote.git"
+    subprocess.run(["git", "init", "--bare", "-q", "-b", "main", str(remote)],
+                   check=True)
+
+    base = tmp_path / "base"
+    _init_repo(base)
+    _git(base, "checkout", "-q", "-b", "main")
+    (base / "a.md").write_text("1")
+    sync.auto_commit(str(base), "c1")
+    _git(base, "remote", "add", "origin", str(remote))
+    _git(base, "push", "-q", "-u", "origin", "main")
+
+    # A neighbor clone advances origin/main behind our back.
+    nb = tmp_path / "nb"
+    subprocess.run(["git", "clone", "-q", str(remote), str(nb)], check=True)
+    _git(nb, "config", "user.email", "n@n")
+    _git(nb, "config", "user.name", "n")
+    (nb / "b.md").write_text("2")
+    _git(nb, "add", "-A")
+    _git(nb, "commit", "-q", "-m", "neighbor")
+    _git(nb, "push", "-q", "origin", "main")
+
+    # We commit locally on top of the now-stale main -> push is non-ff.
+    (base / "c.md").write_text("3")
+    sync.auto_commit(str(base), "c3")
+
+    res = sync.sync(str(base))
+
+    assert res["pushed"] is True
+    log = subprocess.run(["git", "log", "--oneline"], cwd=base,
+                         capture_output=True, text=True).stdout
+    assert "neighbor" in log  # pull --rebase pulled the neighbor commit in
