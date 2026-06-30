@@ -348,6 +348,25 @@ def wiki_bind(read: list[str] | None = None, write: str | None = None) -> dict:
     return {"read": list(new.read), "write": new.write, "project_dir": new.project_dir}
 
 
+@_safe
+def wiki_lint(domain: str | None = None) -> dict:
+    from .engine.lint import lint
+
+    bind = base.resolve_binding()
+    targets = [domain] if domain else base.resolve_scope(bind, "project", None)
+    reports = {}
+    for target in targets:
+        valid_domain = _validate_domain(target)
+        reports[valid_domain] = lint(str(_domain_path(bind.base, valid_domain)))
+    return {"domains": list(reports.keys()), "reports": reports}
+
+
+@_safe
+def wiki_sync() -> dict:
+    bind = base.resolve_binding()
+    return sync.sync(bind.base)
+
+
 # Thin MCP wrappers; implementation functions above stay unit-testable.
 mcp.tool()(wiki_status)
 mcp.tool()(wiki_list_domains)
@@ -359,6 +378,8 @@ mcp.tool()(wiki_write_page)
 mcp.tool()(wiki_index)
 mcp.tool()(wiki_create_domain)
 mcp.tool()(wiki_bind)
+mcp.tool()(wiki_lint)
+mcp.tool()(wiki_sync)
 
 
 def main() -> None:
