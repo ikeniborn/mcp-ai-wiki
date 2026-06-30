@@ -14,6 +14,7 @@ from mcp.server.fastmcp import FastMCP
 from . import base, indexer, retrieval, sync
 from .engine.config import Config, ConfigError
 from .engine.embed import EmbedError
+from .engine.validate import validate_page
 
 mcp = FastMCP("iwiki")
 
@@ -201,6 +202,102 @@ def wiki_related(domain: str, section_id: str) -> dict:
         os.chdir(cwd)
 
 
+_BLOCKING = {"deep_heading", "pre_h2_text"}
+
+
+@_safe
+def wiki_write_page(
+    domain: str, slug: str, markdown: str, source: str | None = None
+) -> dict:
+    bind = base.resolve_binding()
+    valid_domain = _validate_domain(domain)
+    dom_path = _domain_path(bind.base, valid_domain)
+    if not dom_path.is_dir():
+        return {
+            "error": f"domain '{valid_domain}' not found",
+            "hint": "create it with wiki_create_domain",
+        }
+    blocking = [f for f in validate_page(markdown) if f.get("type") in _BLOCKING]
+    if blocking:
+        return {
+            "error": "section structure invalid",
+            "findings": blocking,
+            "hint": "use only ## headings; no text before the first ##",
+        }
+    path = _page_path(bind.base, valid_domain, slug)
+    if os.path.exists(path):
+        return {
+            "error": f"page '{valid_domain}/{slug}' exists",
+            "hint": "editing an existing page is a guarded op; confirm with the user",
+        }
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(markdown)
+    cfg = Config.load()
+    stats = indexer.index_domain(cfg, bind.base, valid_domain)
+    page_file = PurePosixPath(*_slug_parts(slug)).as_posix() + ".md"
+    indexer.append_log(
+        bind.base,
+        valid_domain,
+        "ingest",
+        source or "",
+        page_file,
+        indexer.src_hash(source) if source else None,
+    )
+    page_rel = f"{valid_domain}/{page_file}"
+    commit = sync.auto_commit(bind.base, f"iwiki: ingest {page_rel}")
+    return {
+        "page": page_rel,
+        "indexed_chunks": stats["indexed_chunks"],
+        "bytes": stats["bytes"],
+        "over_cap": stats["over_cap"],
+        "committed": commit.get("committed", False),
+    }
+
+
+@_safe
+def wiki_index(domain: str | None = None) -> dict:
+    bind = base.resolve_binding()
+    target = domain or bind.write
+    if not target:
+        return {
+            "error": "no domain given and no write-target bound",
+            "hint": "pass domain= or set write in .iwiki.toml via wiki_bind",
+        }
+    valid_domain = _validate_domain(target)
+    dom_path = _domain_path(bind.base, valid_domain)
+    if not dom_path.is_dir():
+        return {
+            "error": f"domain '{valid_domain}' not found",
+            "hint": "create it with wiki_create_domain",
+        }
+    cfg = Config.load()
+    stats = indexer.index_domain(cfg, bind.base, valid_domain)
+    return {"domain": valid_domain, **stats}
+
+
+@_safe
+def wiki_create_domain(name: str) -> dict:
+    bind = base.resolve_binding()
+    valid_domain = _validate_domain(name)
+    dom_path = _domain_path(bind.base, valid_domain)
+    if dom_path.is_dir():
+        return {"error": f"domain '{valid_domain}' already exists"}
+    os.makedirs(dom_path / ".iwiki", exist_ok=True)
+    commit = sync.auto_commit(bind.base, f"iwiki: create domain {valid_domain}")
+    return {"created": valid_domain, "committed": commit.get("committed", False)}
+
+
+@_safe
+def wiki_bind(read: list[str] | None = None, write: str | None = None) -> dict:
+    bind = base.resolve_binding()
+    valid_read = None if read is None else [_validate_domain(d) for d in read]
+    valid_write = None if write is None else _validate_domain(write)
+    base.write_project_config(bind.project_dir, read=valid_read, write=valid_write)
+    new = base.resolve_binding()
+    return {"read": list(new.read), "write": new.write, "project_dir": new.project_dir}
+
+
 # Thin MCP wrappers; implementation functions above stay unit-testable.
 mcp.tool()(wiki_status)
 mcp.tool()(wiki_list_domains)
@@ -208,6 +305,10 @@ mcp.tool()(wiki_list_pages)
 mcp.tool()(wiki_read_page)
 mcp.tool()(wiki_search)
 mcp.tool()(wiki_related)
+mcp.tool()(wiki_write_page)
+mcp.tool()(wiki_index)
+mcp.tool()(wiki_create_domain)
+mcp.tool()(wiki_bind)
 
 
 def main() -> None:
