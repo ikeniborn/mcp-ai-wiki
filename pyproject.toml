@@ -17,7 +17,10 @@ dependencies = [
 iwiki-mcp = "iwiki_mcp.server:main"
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -29,3 +32,4 @@ packages = ["src/iwiki_mcp"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+asyncio_mode = "auto"
