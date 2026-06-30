@@ -52,7 +52,39 @@ def test_create_domain(tmp_path, monkeypatch):
 
 
 def test_bind_writes_config(tmp_path, monkeypatch):
-    _b, proj = _seed(tmp_path, monkeypatch)
+    b, proj = _seed(tmp_path, monkeypatch)
+    os.makedirs(os.path.join(b, "shared", ".iwiki"))
     out = server.wiki_bind(read=["backend", "shared"], write="backend")
     assert out["read"] == ["backend", "shared"]
     assert 'write = "backend"' in open(os.path.join(proj, ".iwiki.toml")).read()
+
+
+def test_bind_rejects_missing_domain_without_writing(tmp_path, monkeypatch):
+    _b, proj = _seed(tmp_path, monkeypatch)
+    config_path = os.path.join(proj, ".iwiki.toml")
+
+    out = server.wiki_bind(write="missing")
+
+    text = open(config_path).read()
+    assert "error" in out
+    assert "missing" in out["error"]
+    assert 'write = "backend"' in text
+    assert "missing" not in text
+
+
+def test_write_page_removes_new_file_when_indexing_fails(tmp_path, monkeypatch):
+    b, _ = _seed(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        indexer,
+        "index_domain",
+        lambda cfg, base, domain: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+
+    out = server.wiki_write_page(
+        "backend",
+        "auth",
+        "# Auth\n## Overview\nsummary\n",
+    )
+
+    assert "error" in out
+    assert not os.path.exists(os.path.join(b, "backend", "auth.md"))

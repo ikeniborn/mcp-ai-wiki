@@ -87,6 +87,27 @@ def test_write_project_config_preserves_fields_on_partial_updates(tmp_path, monk
     assert bind.write == "b"
 
 
+def test_write_project_config_preserves_unknown_lines_and_comments(
+    tmp_path, monkeypatch
+):
+    b = _mkbase(tmp_path, "a", "b")
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    monkeypatch.delenv("IWIKI_BASE_DIR", raising=False)
+    (proj / ".iwiki.toml").write_text(
+        f'# keep me\nbase = "{b}"\ncustom = "value"\nread = ["a"]\nwrite = "a"\n'
+    )
+
+    base.write_project_config(str(proj), read=["b"], write="b")
+
+    text = (proj / ".iwiki.toml").read_text()
+    assert "# keep me" in text
+    assert 'custom = "value"' in text
+    assert f'base = "{b}"' in text
+    assert 'read = ["b"]' in text
+    assert 'write = "b"' in text
+
+
 def test_index_path_uses_jsonl_index():
     assert base.index_path("/wiki", "backend").endswith(
         os.path.join(".iwiki", "index.jsonl")

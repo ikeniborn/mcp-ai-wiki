@@ -126,6 +126,51 @@ def _toml_string_list(values: tuple[str, ...]) -> str:
     return "[" + ", ".join(_toml_string(value) for value in values) + "]"
 
 
+def _core_config_lines(config: dict[str, Any]) -> list[str]:
+    lines: list[str] = []
+    if "base" in config and config["base"] is not None:
+        lines.append(f"base = {_toml_string(str(config['base']))}")
+    if "read" in config:
+        lines.append(f"read = {_toml_string_list(_as_str_tuple(config.get('read')))}")
+    if "write" in config and config["write"] is not None:
+        lines.append(f"write = {_toml_string(str(config['write']))}")
+    return lines
+
+
+def _top_level_key(line: str) -> str | None:
+    stripped = line.strip()
+    if not stripped or stripped.startswith(("#", "[")):
+        return None
+    if "=" not in stripped:
+        return None
+    return stripped.split("=", 1)[0].strip()
+
+
+def _write_preserving_unknown_config(config_path: str, config: dict[str, Any]) -> None:
+    try:
+        with open(config_path, encoding="utf-8") as fh:
+            original = fh.read().splitlines()
+    except OSError:
+        original = []
+
+    first_table = next(
+        (i for i, line in enumerate(original) if line.strip().startswith("[")),
+        len(original),
+    )
+    prefix = [
+        line
+        for line in original[:first_table]
+        if _top_level_key(line) not in {"base", "read", "write"}
+    ]
+    suffix = original[first_table:]
+    lines = [*prefix, *_core_config_lines(config), *suffix]
+
+    with open(config_path, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(lines))
+        if lines:
+            fh.write("\n")
+
+
 def write_project_config(
     project_dir: str,
     read: list[str] | tuple[str, ...] | None = None,
@@ -139,19 +184,5 @@ def write_project_config(
     if write is not None:
         config["write"] = write
 
-    lines: list[str] = []
-    if "base" in config and config["base"] is not None:
-        base_value = config["base"]
-        lines.append(f"base = {_toml_string(str(base_value))}")
-    if "read" in config:
-        read_value = _as_str_tuple(config.get("read"))
-        lines.append(f"read = {_toml_string_list(read_value)}")
-    if "write" in config and config["write"] is not None:
-        write_value = config["write"]
-        lines.append(f"write = {_toml_string(str(write_value))}")
-
     config_path = os.path.join(resolved_project_dir, ".iwiki.toml")
-    with open(config_path, "w", encoding="utf-8") as fh:
-        fh.write("\n".join(lines))
-        if lines:
-            fh.write("\n")
+    _write_preserving_unknown_config(config_path, config)

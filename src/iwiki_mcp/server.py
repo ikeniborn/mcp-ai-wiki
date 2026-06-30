@@ -230,20 +230,27 @@ def wiki_write_page(
             "error": f"page '{valid_domain}/{slug}' exists",
             "hint": "editing an existing page is a guarded op; confirm with the user",
         }
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as fh:
-        fh.write(markdown)
     cfg = Config.load()
-    stats = indexer.index_domain(cfg, bind.base, valid_domain)
     page_file = PurePosixPath(*_slug_parts(slug)).as_posix() + ".md"
-    indexer.append_log(
-        bind.base,
-        valid_domain,
-        "ingest",
-        source or "",
-        page_file,
-        indexer.src_hash(source) if source else None,
-    )
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    try:
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(markdown)
+        stats = indexer.index_domain(cfg, bind.base, valid_domain)
+        indexer.append_log(
+            bind.base,
+            valid_domain,
+            "ingest",
+            source or "",
+            page_file,
+            indexer.src_hash(source) if source else None,
+        )
+    except Exception:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+        raise
     page_rel = f"{valid_domain}/{page_file}"
     commit = sync.auto_commit(bind.base, f"iwiki: ingest {page_rel}")
     return {
@@ -293,6 +300,17 @@ def wiki_bind(read: list[str] | None = None, write: str | None = None) -> dict:
     bind = base.resolve_binding()
     valid_read = None if read is None else [_validate_domain(d) for d in read]
     valid_write = None if write is None else _validate_domain(write)
+    for domain in valid_read or ():
+        if not _domain_path(bind.base, domain).is_dir():
+            return {
+                "error": f"domain '{domain}' not found",
+                "hint": "create it with wiki_create_domain",
+            }
+    if valid_write is not None and not _domain_path(bind.base, valid_write).is_dir():
+        return {
+            "error": f"domain '{valid_write}' not found",
+            "hint": "create it with wiki_create_domain",
+        }
     base.write_project_config(bind.project_dir, read=valid_read, write=valid_write)
     new = base.resolve_binding()
     return {"read": list(new.read), "write": new.write, "project_dir": new.project_dir}
