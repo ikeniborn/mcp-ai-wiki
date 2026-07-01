@@ -83,8 +83,8 @@ body:has(#tab-result:checked) label[for="tab-result"]{ color:var(--accent); bord
 <body>
 <input type="checkbox" id="theme-toggle" hidden>
 <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
-<input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden checked>
-<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden checked>
 <input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
 <label for="theme-toggle" class="theme-btn" title="Переключить тему">🌙 / ☀️</label>
 <header>
@@ -310,7 +310,120 @@ body:has(#tab-result:checked) label[for="tab-result"]{ color:var(--accent); bord
 
 <!-- TAB:plan START -->
 <section class="tab-pane" id="pane-plan">
-  <p class="note">Этап ещё не проверен.</p>
+
+  <h2>1. Резюме плана</h2>
+  <p class="legend">Файл: <code>docs/superpowers/plans/2026-07-01-wiki-update-page.md</code> &nbsp;·&nbsp; plan_hash: <code>c8b83d11e7baaf79</code> &nbsp;·&nbsp; против spec_hash <code>bc5b2b4fb600122d</code> &nbsp;·&nbsp; 6 задач, TDD</p>
+
+  <table>
+    <thead><tr><th style="width:22%">Задача</th><th>Что делает · Definition of Done</th></tr></thead>
+    <tbody>
+      <tr><td>T1 · <code>engine/section.py</code></td><td><code>replace_section</code> + <code>SectionError</code> (stdlib). DoD: <code>uv run pytest tests/test_section.py</code> → 7 passed (splice, last-section, strip <code>##</code>, Overview, not-found, duplicate, empty).</td></tr>
+      <tr><td>T2 · <code>sync.commit_and_push</code></td><td><code>auto_commit</code> → если committed, <code>sync</code>; маппинг возврата. DoD: <code>tests/test_commit_and_push.py</code> → 3 passed (commit+sync, warning, non-repo пропускает sync).</td></tr>
+      <tr><td>T3 · <code>indexer.upsert_ingest_log</code></td><td>Одна ingest-запись на страницу. DoD: <code>tests/test_indexer_log.py</code> → 2 passed (replace prior, create when absent).</td></tr>
+      <tr><td>T4 · <code>server.wiki_update_page</code></td><td>Транзакция + <code>_restore_log</code> + регистрация тула. DoD: <code>tests/test_server_update.py</code> → 6 passed (edit+pushed key, not-found, missing heading, deep-heading reject, log upsert, rollback file+log).</td></tr>
+      <tr><td>T5 · ретрофит мутаций</td><td><code>write_page</code>/<code>create_domain</code>/<code>index</code> → <code>commit_and_push</code>. DoD: <code>uv run pytest -q</code> зелёный + новый <code>test_index_commits_and_reports_push</code>.</td></tr>
+      <tr><td>T6 · docs + версия + wiki</td><td>README, <code>architecture.md</code>, patch-bump, iwiki-домен. DoD: <code>grep -q wiki_update_page README.md</code> и <code>… architecture.md</code> → OK; <code>uv run pytest -q</code> зелёный.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>2. Схемы зависимостей и пересечений</h2>
+
+  <h3>Граф зависимостей задач (M → N = результат M используется в N, M&lt;N)</h3>
+  <figure>
+    <svg class="graph" viewBox="0 0 700 400" role="img" aria-label="Граф зависимостей задач плана">
+      <defs>
+        <marker id="arrow2" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto-start-reverse">
+          <path d="M0,0 L9,4.5 L0,9 z" fill="var(--line)"></path>
+        </marker>
+        <filter id="ds2" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="var(--shadow)"></feDropShadow>
+        </filter>
+      </defs>
+      <g>
+        <path class="gedge" marker-end="url(#arrow2)" d="M110,72 L235,176"></path>
+        <path class="gedge" marker-end="url(#arrow2)" d="M330,72 L260,176"></path>
+        <path class="gedge" marker-end="url(#arrow2)" d="M540,72 L290,176"></path>
+        <path class="gedge" marker-end="url(#arrow2)" d="M355,72 L515,176"></path>
+        <path class="gedge" marker-end="url(#arrow2)" d="M250,222 L385,326"></path>
+        <path class="gedge" marker-end="url(#arrow2)" d="M515,222 L420,326"></path>
+      </g>
+      <g filter="url(#ds2)">
+        <rect class="gnode" x="45"  y="28" width="130" height="44" rx="8"></rect>
+        <rect class="gnode" x="265" y="28" width="140" height="44" rx="8"></rect>
+        <rect class="gnode" x="485" y="28" width="150" height="44" rx="8"></rect>
+        <rect class="gnode hub" x="185" y="178" width="130" height="44" rx="8"></rect>
+        <rect class="gnode" x="455" y="178" width="130" height="44" rx="8"></rect>
+        <rect class="gnode hub" x="335" y="328" width="130" height="44" rx="8"></rect>
+      </g>
+      <text class="glabel" x="110" y="47" text-anchor="middle">T1 section.py</text>
+      <text class="gsub"   x="110" y="62" text-anchor="middle">replace_section</text>
+      <text class="glabel" x="335" y="47" text-anchor="middle">T2 commit_and_push</text>
+      <text class="gsub"   x="335" y="62" text-anchor="middle">sync.py</text>
+      <text class="glabel" x="560" y="47" text-anchor="middle">T3 upsert_log</text>
+      <text class="gsub"   x="560" y="62" text-anchor="middle">indexer.py</text>
+      <text class="glabel" x="250" y="197" text-anchor="middle">T4 update_page</text>
+      <text class="gsub"   x="250" y="212" text-anchor="middle">server.py</text>
+      <text class="glabel" x="520" y="197" text-anchor="middle">T5 ретрофит</text>
+      <text class="gsub"   x="520" y="212" text-anchor="middle">server.py</text>
+      <text class="glabel" x="400" y="347" text-anchor="middle">T6 docs</text>
+      <text class="gsub"   x="400" y="362" text-anchor="middle">README/arch/ver</text>
+    </svg>
+    <figcaption>Ацикличный, порядок соблюдён (M&lt;N). Хабы: T4 (сходятся T1–T3) и T6 (финализация). Нарушений порядка нет.</figcaption>
+  </figure>
+
+  <h3>Пересечения по артефактам и покрытию</h3>
+  <table>
+    <thead><tr><th style="width:34%">Артефакт / требование</th><th>Задачи</th></tr></thead>
+    <tbody>
+      <tr><td><code>src/iwiki_mcp/server.py</code></td><td>T4 (new <code>wiki_update_page</code>+<code>_restore_log</code>), T5 (ретрофит 3 тулов) — правки в разных функциях, не конфликтуют</td></tr>
+      <tr><td><code>tests/test_server_write.py</code></td><td>T5 (добавляет один тест к существующему файлу)</td></tr>
+      <tr><td>R4 · commit+push на всех мутациях</td><td>T2 (def) + T4 (вызов) + T5 (ретрофит) — одно требование, три задачи</td></tr>
+      <tr><td>section.py / sync.py / indexer.py</td><td>по одной задаче каждый (T1 / T2 / T3) — без пересечений</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Результаты проверки</h2>
+
+  <h3>Фазы</h3>
+  <table>
+    <thead><tr><th style="width:22%">Фаза</th><th style="width:16%">Статус</th><th>Итог</th></tr></thead>
+    <tbody>
+      <tr><td>1 · structure</td><td><span class="badge b-ok">passed</span></td><td>Плейсхолдеров нет; нумерация задач/шагов без пропусков и дублей.</td></tr>
+      <tr><td>2 · coverage</td><td><span class="badge b-ok">passed</span></td><td>Все требования спеки (R1–R7) покрыты; лишних шагов нет.</td></tr>
+      <tr><td>3 · dependencies</td><td><span class="badge b-ok">passed</span></td><td>Порядок верный: T1/T2/T3 → T4; T2 → T5; сигнатуры def↔call совпадают; циклов нет.</td></tr>
+      <tr><td>4 · verifiability</td><td><span class="badge b-ok">passed</span></td><td>У каждого шага команда + expected; docs-шаги получили grep-DoD.</td></tr>
+      <tr><td>5 · consistency</td><td><span class="badge b-ok">passed</span></td><td>Все claim'ы о коде сверены с файлами и точны (wiki_index без commit, _BLOCKING, ключи index_domain).</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Findings</h3>
+  <table>
+    <thead><tr><th>ID</th><th>Severity</th><th>Раздел</th><th>Проблема</th><th>Fix</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>F-001</td><td><span class="badge b-warn">WARNING</span></td><td>T4 Step 3c</td>
+        <td>План не повторяет, что <code>ignore</code> уже импортирован в server.py.</td>
+        <td>Правка не нужна — <code>server.py:15</code> уже импортирует <code>ignore</code>; план работает как есть.</td>
+        <td><span class="badge b-ok">accepted</span></td>
+      </tr>
+      <tr>
+        <td>F-002</td><td><span class="badge b-info">INFO</span></td><td>T6 Step 1/2</td>
+        <td>Docs-шаги не имели команды проверки (только описательный DoD).</td>
+        <td>Добавлены <code>grep</code>-verify + expected <code>OK</code> в оба docs-шага.</td>
+        <td><span class="badge b-fixed">fixed</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Сводка</h3>
+  <p>
+    <span class="badge b-ok">CRITICAL open: 0</span>&nbsp;
+    <span class="badge b-ok">WARNING open: 0</span>&nbsp;
+    <span class="badge b-info">1 WARNING accepted · 1 INFO fixed</span>
+  </p>
+  <p class="note"><strong>Вердикт: OK</strong> — 0 critical, 0 open. План готов к исполнению.</p>
+  <p class="legend">Цепочка: <code>intent</code> (n/a) → <strong>spec ✓</strong> → <strong>plan ✓</strong> → <code>result</code>.</p>
+
 </section>
 <!-- TAB:plan END -->
 
