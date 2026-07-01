@@ -370,7 +370,9 @@ def wiki_lint(domain: str | None = None) -> dict:
     reports = {}
     for target in targets:
         valid_domain = _validate_domain(target)
-        reports[valid_domain] = lint(str(_domain_path(bind.base, valid_domain)))
+        reports[valid_domain] = lint(
+            str(_domain_path(bind.base, valid_domain)), project_dir=bind.project_dir
+        )
     return {"domains": list(reports.keys()), "reports": reports}
 
 

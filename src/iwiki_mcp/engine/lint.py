@@ -132,7 +132,29 @@ def _stale(wiki_dir: str) -> list[dict]:
     return out
 
 
-def lint(wiki_dir: str) -> dict:
+def _source_exists(src: str, project_dir: str | None) -> bool:
+    """Does the ingest source resolve to a real file? Absolute paths are checked
+    as-is; a relative path is resolved against project_dir (when known) and the
+    cwd. Any hit means the source still exists."""
+    if os.path.isabs(src):
+        return os.path.isfile(src)
+    cands = [os.path.join(project_dir, src)] if project_dir else []
+    cands.append(src)  # cwd-relative fallback
+    return any(os.path.isfile(c) for c in cands)
+
+
+def _missing_source(wiki_dir: str, project_dir: str | None) -> list[dict]:
+    """Pages whose recorded (non-empty) source no longer exists on disk — the
+    deletion candidates surfaced by wiki_lint. Uses the latest ingest per page."""
+    out: list[dict] = []
+    for page_path, rec in _latest_ingest_by_page(wiki_dir).items():
+        src = rec["source"]
+        if os.path.isfile(page_path) and not _source_exists(src, project_dir):
+            out.append({"page": page_path, "source": src})
+    return out
+
+
+def lint(wiki_dir: str, project_dir: str | None = None) -> dict:
     """Health report over docs/wiki/. Absent/empty wiki → {"wiki_present": false}."""
     if not os.path.isdir(wiki_dir):
         return {"wiki_present": False}
@@ -168,4 +190,5 @@ def lint(wiki_dir: str) -> dict:
                 for f in validate_page(c)]
     return {"wiki_present": True, "pages": len(pages),
             "broken": broken, "orphans": orphans, "stale": _stale(wiki_dir),
+            "missing_source": _missing_source(wiki_dir, project_dir),
             "sections": sections}
