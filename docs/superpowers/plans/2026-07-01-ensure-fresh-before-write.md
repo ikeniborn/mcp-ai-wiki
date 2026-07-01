@@ -11,7 +11,7 @@ review:
   findings: []
 chain:
   intent: null
-  spec: 3c71c3a2097a399a
+  spec: e03bfe0bcdeec208
 ---
 # Ensure base freshness before write — Implementation Plan
 

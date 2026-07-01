@@ -94,7 +94,7 @@ body:has(#tab-result:checked) #pane-result{display:block}
 
   <h2>1. Резюме спецификации</h2>
   <p class="note">Файл: <code>docs/superpowers/specs/2026-07-01-ensure-fresh-before-write-design.md</code> ·
-  spec_hash: <code>3c71c3a2097a399a</code> · вердикт: <span class="badge b-ok">OK</span></p>
+  spec_hash: <code>e03bfe0bcdeec208</code> · вердикт: <span class="badge b-ok">OK</span></p>
   <p>Цель: тянуть remote <b>до</b> локальной мутации, чтобы запись ложилась на текущий remote-tip и push становился fast-forward. При реальном расхождении (diverged) — отказать в записи с hint, не громоздя новый коммит на расхождение.</p>
 
   <h3>Требования по секциям</h3>
@@ -123,7 +123,7 @@ body:has(#tab-result:checked) #pane-result{display:block}
       <tr><td><code>up_to_date</code></td><td>behind=0, ahead=0</td><td>proceed</td></tr>
       <tr><td><code>ahead</code></td><td>ahead&gt;0, behind=0</td><td>proceed (push ff позже)</td></tr>
       <tr><td><code>updated</code></td><td>behind&gt;0, ahead=0, tree чистый</td><td><code>merge --ff-only</code> → proceed</td></tr>
-      <tr><td><code>dirty</code></td><td>behind&gt;0, tree грязный</td><td>skip ff, proceed + warning</td></tr>
+      <tr><td><code>dirty</code></td><td>behind&gt;0, tracked изменён (untracked игнор)</td><td>skip ff, proceed + warning</td></tr>
       <tr><td><code>diverged</code></td><td>ahead&gt;0 <b>и</b> behind&gt;0</td><td><span class="badge b-crit">BLOCK</span> — caller отказывает</td></tr>
     </tbody>
   </table>
@@ -192,7 +192,7 @@ body:has(#tab-result:checked) #pane-result{display:block}
 
   <h2>1. Резюме плана</h2>
   <p class="note">Файл: <code>docs/superpowers/plans/2026-07-01-ensure-fresh-before-write.md</code> ·
-  plan_hash: <code>b4b42701b7aa550d</code> · spec_hash: <code>3c71c3a2097a399a</code> ·
+  plan_hash: <code>b4b42701b7aa550d</code> · spec_hash: <code>e03bfe0bcdeec208</code> ·
   вердикт: <span class="badge b-ok">OK</span> · 3 задачи (TDD)</p>
 
   <table>
@@ -265,7 +265,7 @@ body:has(#tab-result:checked) #pane-result{display:block}
     <span class="badge b-warn">WARNING open: 0</span>&nbsp;
     <span class="badge b-ok">Вердикт: OK</span>
   </p>
-  <p class="note">Chain: <code>intent → spec → plan</code> — intent отсутствует; spec <code>3c71c3a2097a399a</code> → plan <code>b4b42701b7aa550d</code>.</p>
+  <p class="note">Chain: <code>intent → spec → plan</code> — intent отсутствует; spec <code>e03bfe0bcdeec208</code> → plan <code>b4b42701b7aa550d</code>.</p>
 
 </section>
 <!-- TAB:plan END -->

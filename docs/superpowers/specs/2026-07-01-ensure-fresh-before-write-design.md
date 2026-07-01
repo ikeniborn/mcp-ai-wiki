@@ -1,6 +1,6 @@
 ---
 review:
-  spec_hash: 3c71c3a2097a399a
+  spec_hash: e03bfe0bcdeec208
   last_run: 2026-07-01
   phases:
     structure: {status: passed}
@@ -67,11 +67,13 @@ git rev-list --left-right --count @{upstream}...HEAD
 | `up_to_date`  | behind = 0, ahead = 0                        | proceed                             |
 | `ahead`       | ahead > 0, behind = 0                        | proceed (push fast-forwards later)  |
 | `updated`     | behind > 0, ahead = 0, tree clean            | `git merge --ff-only` → proceed     |
-| `dirty`       | behind > 0, tree not clean                   | skip ff, proceed + warning          |
+| `dirty`       | behind > 0, tracked files modified (untracked ignored) | skip ff, proceed + warning |
 | `diverged`    | ahead > 0 **and** behind > 0                 | **BLOCK** — caller refuses          |
 
 Notes:
 - `--ff-only` guarantees no merge commit and no history rewrite.
+- `dirty` counts only modifications to *tracked* files; untracked files are
+  ignored because they do not block `git merge --ff-only`.
 - `dirty` should not normally happen (handlers auto-commit), so it degrades to a
   warning rather than a hard stop.
 - All git failures degrade to `offline`/warning, matching the module's fail-soft
