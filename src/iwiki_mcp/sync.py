@@ -106,6 +106,67 @@ def sync(base: str, timeout: float = 15.0, push_retries: int = 3) -> dict:
         return {"pulled": False, "pushed": False, "error": str(e)}
 
 
+def _ahead_behind(base: str) -> tuple[int, int] | None:
+    """(behind, ahead) relative to @{upstream}, or None if no upstream is set."""
+    r = _run(base, "rev-list", "--left-right", "--count", "@{upstream}...HEAD")
+    if r.returncode != 0:
+        return None
+    parts = r.stdout.split()
+    if len(parts) != 2:
+        return None
+    behind, ahead = parts
+    return int(behind), int(ahead)
+
+
+def _tree_clean(base: str) -> bool:
+    r = _run(base, "status", "--porcelain")
+    if r.returncode != 0:
+        return False
+    # filter out untracked files (??); only care about modifications to tracked files
+    for line in r.stdout.strip().split("\n"):
+        if line and not line.startswith("??"):
+            return False
+    return True
+
+
+def ensure_fresh(base: str, timeout: float = 15.0) -> dict:
+    """Bring the base up to date with its remote BEFORE a local mutation.
+
+    Fetches, then fast-forwards when the base is cleanly behind its upstream.
+    Fail-soft: returns a {"state": ...} dict, never raises. A "diverged" state
+    (local commits AND remote ahead) signals the caller to refuse the write.
+    """
+    if not is_git_repo(base):
+        return {"state": "no_repo"}
+    try:
+        with base_lock(base, timeout):
+            if not _has_remote(base):
+                return {"state": "no_remote"}
+            fetch = _run(base, "fetch")
+            if fetch.returncode != 0:
+                return {"state": "offline", "warning": _output(fetch)}
+            counts = _ahead_behind(base)
+            if counts is None:
+                return {"state": "no_upstream",
+                        "warning": "branch has no upstream; skipped freshness check"}
+            behind, ahead = counts
+            if behind == 0:
+                return {"state": "ahead" if ahead else "up_to_date"}
+            if ahead:
+                return {"state": "diverged"}
+            if not _tree_clean(base):
+                return {"state": "dirty",
+                        "warning": "local changes present; skipped fast-forward"}
+            ff = _run(base, "merge", "--ff-only", "@{upstream}")
+            if ff.returncode != 0:
+                return {"state": "offline", "warning": _output(ff)}
+            return {"state": "updated"}
+    except Timeout:
+        return {"state": "offline", "warning": "base busy: lock timeout"}
+    except Exception as e:
+        return {"state": "offline", "warning": str(e)}
+
+
 def commit_and_push(base: str, message: str, pathspec: str | None = None) -> dict:
     """Auto-commit, then push via ``sync`` when the commit landed.
 
