@@ -71,8 +71,8 @@ body:has(#tab-result:checked) #pane-result{display:block}
 <input type="checkbox" id="theme-toggle" hidden>
 <input type="radio" name="chain-tab" id="tab-intent" class="tab-radio" hidden>
 <input type="radio" name="chain-tab" id="tab-spec"   class="tab-radio" hidden>
-<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden checked>
-<input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-plan"   class="tab-radio" hidden>
+<input type="radio" name="chain-tab" id="tab-result" class="tab-radio" hidden checked>
 <header>
   <label for="theme-toggle" class="theme-btn" title="Тёмная / светлая тема">🌙 / ☀️</label>
   <h1>IDD→SDD chain — ensure-fresh-before-write</h1>
@@ -271,7 +271,51 @@ body:has(#tab-result:checked) #pane-result{display:block}
 <!-- TAB:plan END -->
 <!-- TAB:result START -->
 <section class="tab-pane" id="pane-result">
-  <p class="note">Этап ещё не проверен.</p>
+
+  <h2>1. Резюме сверки</h2>
+  <p class="note">plan_hash: <code>b4b42701b7aa550d</code> · spec_hash: <code>e03bfe0bcdeec208</code> · intent: <code>n/a</code> ·
+  дифф реализации <code>1c378d0..b5d8051</code> · вердикт: <span class="badge b-ok">OK</span> · suite <b>164/164</b> · 0 CRITICAL</p>
+
+  <h2>2. Результаты проверки</h2>
+
+  <h3>Задачи плана → дифф</h3>
+  <table>
+    <thead><tr><th>Задача</th><th>Коммиты</th><th>Статус</th></tr></thead>
+    <tbody>
+      <tr><td>T1 — <code>ensure_fresh</code> + <code>_ahead_behind</code>/<code>_tree_clean</code> + unit-тесты</td><td><code>a900858</code>, <code>1935f52</code></td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td>T2 — гард в 5 mutating-хендлерах + <code>_DIVERGED</code>/<code>_fresh_warn</code> + хендлер-тесты</td><td><code>cde98f1</code></td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td>T3 — README + CLAUDE.md + version 0.1.5 (+ uv.lock)</td><td><code>6c5e201</code>, <code>b5d8051</code></td><td><span class="badge b-ok">DONE</span></td></tr>
+      <tr><td>T3 Step 6 — wiki git-sync.md (внешняя база iwiki-personal)</td><td>reindex (embedded 5)</td><td><span class="badge b-ok">DONE</span></td></tr>
+    </tbody>
+  </table>
+  <p class="note">Покрытие шагов: 3/3 DONE, 0 PARTIAL, 0 MISSING.</p>
+
+  <h3>Покрытие spec</h3>
+  <p>Все требования <b>R1–R8</b> отражены в диффе (ensure_fresh + 9-state, гард в 5 хендлерах, diverged-refuse zero-effect, тесты no-network, docs+version). Детали — вкладка Spec.</p>
+
+  <h3>Findings</h3>
+  <table>
+    <thead><tr><th>severity</th><th>шаг</th><th>Plan / Diff / Fix</th></tr></thead>
+    <tbody>
+      <tr><td><span class="badge b-warn">WARNING</span></td><td>EXCESS</td><td><code>uv.lock</code> изменён version-bump'ом (+ инцидентальный resync маркера exceptiongroup); закоммичен <code>b5d8051</code> — benign, вне шагов плана</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Финальный whole-branch review (opus)</h2>
+  <p>
+    <span class="badge b-ok">Ready to merge: YES</span>&nbsp;
+    <span class="badge b-crit">Critical: 0</span>&nbsp;
+    <span class="badge b-warn">Important: 0</span>
+  </p>
+  <p class="note">5 залогированных Minor → все DEFER (косметика/низкоценные пробелы): T1-b ff-fail помечен offline; T1-c no_upstream/offline без тестов; T1-d <code>_ahead_behind</code> int() (контракт держится через внешний try/except); T2-a index-assert belt-suspenders; T2-b тест warning-threading. + F-1 <code>_fresh_warn</code>/<code>commit_and_push</code> делят слот "warning" (без клеша сегодня).</p>
+
+  <h3>Вердикт</h3>
+  <p>
+    <span class="badge b-ok">Result: OK</span>&nbsp;
+    <span class="badge b-ok">Chain: done</span>
+  </p>
+  <p class="note">Chain <code>spec → plan → result</code> закрыт (intent n/a). Ветка <code>dev-ensure-fresh-before-write</code> готова к PR в <code>master</code>.</p>
+
 </section>
 <!-- TAB:result END -->
 </main>
