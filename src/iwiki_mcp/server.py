@@ -245,12 +245,28 @@ def _restore_log(path: str, before: bytes | None) -> None:
         pass
 
 
+_DIVERGED = {
+    "error": "base diverged from remote",
+    "hint": "run wiki_sync to reconcile (pull --rebase + push), "
+            "or resolve the conflict in the base repo, then retry",
+}
+
+
+def _fresh_warn(fresh: dict) -> dict:
+    """Freshness warning as a spreadable dict fragment ({} when there is none)."""
+    w = fresh.get("warning")
+    return {"warning": w} if w else {}
+
+
 @_safe
 def wiki_write_page(
     domain: str, slug: str, markdown: str, source: str | None = None
 ) -> dict:
     bind = base.resolve_binding()
     valid_domain = _validate_domain(domain)
+    fresh = sync.ensure_fresh(bind.base)
+    if fresh.get("state") == "diverged":
+        return dict(_DIVERGED)
     dom_path = _domain_path(bind.base, valid_domain)
     if not dom_path.is_dir():
         return {
@@ -317,6 +333,7 @@ def wiki_write_page(
         "over_cap": stats["over_cap"],
         "committed": commit.get("committed", False),
         "pushed": commit.get("pushed", False),
+        **_fresh_warn(fresh),
     }
 
 
@@ -326,6 +343,9 @@ def wiki_update_page(
 ) -> dict:
     bind = base.resolve_binding()
     valid_domain = _validate_domain(domain)
+    fresh = sync.ensure_fresh(bind.base)
+    if fresh.get("state") == "diverged":
+        return dict(_DIVERGED)
     dom_path = _domain_path(bind.base, valid_domain)
     if not dom_path.is_dir():
         return {
@@ -392,6 +412,7 @@ def wiki_update_page(
         "over_cap": stats["over_cap"],
         "committed": commit.get("committed", False),
         "pushed": commit.get("pushed", False),
+        **_fresh_warn(fresh),
     }
 
 
@@ -399,6 +420,9 @@ def wiki_update_page(
 def wiki_delete_page(domain: str, slug: str) -> dict:
     bind = base.resolve_binding()
     valid_domain = _validate_domain(domain)
+    fresh = sync.ensure_fresh(bind.base)
+    if fresh.get("state") == "diverged":
+        return dict(_DIVERGED)
     dom_path = _domain_path(bind.base, valid_domain)
     if not dom_path.is_dir():
         return {
@@ -437,6 +461,7 @@ def wiki_delete_page(domain: str, slug: str) -> dict:
         "bytes": stats["bytes"],
         "committed": commit.get("committed", False),
         "pushed": commit.get("pushed", False),
+        **_fresh_warn(fresh),
     }
 
 
@@ -450,6 +475,9 @@ def wiki_index(domain: str | None = None) -> dict:
             "hint": "pass domain= or set write in .iwiki.toml via wiki_bind",
         }
     valid_domain = _validate_domain(target)
+    fresh = sync.ensure_fresh(bind.base)
+    if fresh.get("state") == "diverged":
+        return dict(_DIVERGED)
     dom_path = _domain_path(bind.base, valid_domain)
     if not dom_path.is_dir():
         return {
@@ -462,13 +490,17 @@ def wiki_index(domain: str | None = None) -> dict:
                                   pathspec=valid_domain)
     return {"domain": valid_domain, **stats,
             "committed": commit.get("committed", False),
-            "pushed": commit.get("pushed", False)}
+            "pushed": commit.get("pushed", False),
+            **_fresh_warn(fresh)}
 
 
 @_safe
 def wiki_create_domain(name: str) -> dict:
     bind = base.resolve_binding()
     valid_domain = _validate_domain(name)
+    fresh = sync.ensure_fresh(bind.base)
+    if fresh.get("state") == "diverged":
+        return dict(_DIVERGED)
     dom_path = _domain_path(bind.base, valid_domain)
     if dom_path.is_dir():
         return {"error": f"domain '{valid_domain}' already exists"}
@@ -477,7 +509,7 @@ def wiki_create_domain(name: str) -> dict:
     commit = sync.commit_and_push(bind.base, f"iwiki: create domain {valid_domain}",
                                   pathspec=valid_domain)
     return {"created": valid_domain, "committed": commit.get("committed", False),
-            "pushed": commit.get("pushed", False)}
+            "pushed": commit.get("pushed", False), **_fresh_warn(fresh)}
 
 
 @_safe
