@@ -94,7 +94,7 @@ body:has(#tab-result:checked) #pane-result{display:block}
 
   <h2>1. Резюме спецификации</h2>
   <p class="note">Файл: <code>docs/superpowers/specs/2026-07-01-delete-stale-wiki-page-design.md</code> ·
-  spec_hash: <code>94f31fed43247677</code> · вердикт: <span class="badge b-ok">OK</span></p>
+  spec_hash: <code>b404753f7cccc92e</code> · вердикт: <span class="badge b-ok">OK</span></p>
 
   <h3>Требования по секциям</h3>
   <table>
@@ -109,11 +109,12 @@ body:has(#tab-result:checked) #pane-result{display:block}
       <tr><td>R7</td><td>Decisions · Mechanism</td><td>Подход A: reindex-rebuild через <code>index_domain</code> + append <code>delete</code>-op в лог; reindex при удалении не делает embedding-вызов.</td></tr>
       <tr><td>R8</td><td>Decisions · Path resolution</td><td>Гибрид A1+A2: абсолютный source проверяется как есть; относительный резолвится от <code>project_dir</code> и cwd перед пометкой.</td></tr>
       <tr><td>R9</td><td>Components §1</td><td>Tool с success-dict и fail-soft error-dict; переиспользует существующие path-traversal guard'ы.</td></tr>
-      <tr><td>R10</td><td>Components §2</td><td><code>_source_exists</code> + <code>_missing_source</code>; <code>lint(project_dir=None)</code>; <code>source==""</code> пропуск; <code>_stale</code> не трогается.</td></tr>
+      <tr><td>R10</td><td>Components §2</td><td><code>_source_exists</code> + <code>_missing_source</code>; <code>lint(project_dir=None)</code>; <code>source==""</code> пропуск.</td></tr>
+      <tr><td>R10a</td><td>Components §2</td><td>Общий <code>_latest_ingest_by_page</code> (last-wins) для <b>обоих</b> <code>_missing_source</code> и <code>_stale</code> — пересозданную страницу судить по новому source (delete делает <code>ingest→delete→ingest</code> возможным).</td></tr>
       <tr><td>R11</td><td>Components §3</td><td>Транзакция из 7 шагов, file-removal — точка отката.</td></tr>
       <tr><td>R12</td><td>Components §4</td><td>Откат: восстановить файл + срезать строку лога; commit best-effort.</td></tr>
       <tr><td>R13</td><td>Testing</td><td>Тесты: success, негативные кейсы, rollback, детектор <code>missing_source</code> (паттерн no-network).</td></tr>
-      <tr><td>R14</td><td>Docs / versioning</td><td>Обновить <code>docs/wiki/</code>; patch-bump версии в <code>pyproject.toml</code>.</td></tr>
+      <tr><td>R14</td><td>Docs / versioning</td><td>Обновить <code>README.md</code> (таблица tools + <code>missing_source</code> в строке <code>wiki_lint</code>) и <code>docs/wiki/</code>; patch-bump версии в <code>pyproject.toml</code>.</td></tr>
     </tbody>
   </table>
 
@@ -234,7 +235,7 @@ body:has(#tab-result:checked) #pane-result{display:block}
     <thead><tr><th>Задача</th><th>Покрыто требованиями</th></tr></thead>
     <tbody>
       <tr><td>T1 — явное удаление, lint не удаляет</td><td>R2, R3, R9</td></tr>
-      <tr><td>T2 — сигнал только «source gone»</td><td>R1, R4, R10</td></tr>
+      <tr><td>T2 — сигнал только «source gone»</td><td>R1, R4, R10, R10a</td></tr>
       <tr><td>T3 — гранулярность страница</td><td>R5, R9</td></tr>
       <tr><td>T4 — sync чисто git</td><td>R6</td></tr>
       <tr><td>T5 — механизм Approach A</td><td>R7, R11, SC2</td></tr>

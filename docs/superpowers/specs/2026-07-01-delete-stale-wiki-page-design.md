@@ -1,6 +1,6 @@
 ---
 review:
-  spec_hash: 94f31fed43247677
+  spec_hash: b404753f7cccc92e
   last_run: 2026-07-01
   phases:
     structure:   { status: passed }
@@ -80,6 +80,12 @@ New report field `missing_source`: list of `{"page", "source"}`, mirroring
 `_stale` but with inverted polarity (source *absent* instead of *modified*).
 
 ```python
+def _latest_ingest_by_page(log_path: str) -> dict[str, str]:
+    # scan log.jsonl IN ORDER; keep the LAST record per page.
+    # op == "ingest" sets the page's current source; op == "delete" clears the
+    # entry. Last-wins so a delete + re-ingest of the same slug is judged by the
+    # NEW source, not a stale earlier ingest record.
+
 def _source_exists(src: str, project_dir: str | None) -> bool:
     if os.path.isabs(src):
         return os.path.isfile(src)
@@ -88,15 +94,20 @@ def _source_exists(src: str, project_dir: str | None) -> bool:
     return any(os.path.isfile(c) for c in cands)
 
 def _missing_source(wiki_dir: str, project_dir: str | None) -> list[dict]:
-    # parse .iwiki/log.jsonl, dedupe by page (first hit wins)
-    # candidate iff: source non-empty AND page .md exists AND NOT _source_exists(source)
+    # from _latest_ingest_by_page(): candidate iff source non-empty
+    # AND page .md exists AND NOT _source_exists(source, project_dir)
 ```
 
 - `lint(wiki_dir, project_dir=None)` gains an optional `project_dir` parameter.
   The module stays stdlib-only (a plain string keeps the config-free contract).
 - `wiki_lint` calls `lint(str(_domain_path(...)), project_dir=bind.project_dir)`.
 - `source == ""` (page ingested without a source) → skipped, never a candidate.
-- `_stale` is left untouched (surgical change; different semantics and polarity).
+- **Last-wins dedup (shared).** `_stale` is refactored to consume the same
+  `_latest_ingest_by_page` helper, so both detectors pick the latest ingest per
+  page. This is required because `wiki_delete_page` makes `ingest → delete →
+  ingest` sequences for one slug possible; the old first-hit dedup would judge a
+  re-created page by a dead earlier source. `_stale`'s stale-detection semantics
+  are otherwise unchanged; its existing tests are updated for the re-create case.
 - Report shape becomes
   `{..., "stale": [...], "missing_source": [...], "sections": [...]}`.
 
@@ -133,24 +144,35 @@ out of the rebuilt set.
   `committed: false` (matches `wiki_write_page`).
 - `@_safe` catches everything else and returns `{"error", "hint"}`.
 
-## Testing (`tests/`, `_seed` + monkeypatch `embed_texts`)
+## Testing (`_seed` + monkeypatch `embed_texts`)
 
+Tool tests in `tests/test_server_*.py`; detector tests in `tests/engine/test_lint.py`.
+
+`wiki_delete_page` (`tests/test_server_*.py`):
 - delete success: file removed; log gains a `delete` record; index rebuilt; the
   page's records are gone from the index.
+- delete the last page in a domain → index becomes an empty store (no crash).
 - delete nonexistent page / invalid slug / unknown domain → error dict.
 - rollback: monkeypatch `index_domain` to raise → file restored, no orphan log line.
-- lint `missing_source`:
-  - absolute source that no longer exists → flagged
-  - existing source → not flagged
-  - relative source resolved against `project_dir` → correct flag/no-flag
-  - `source == ""` → not a candidate
-  - page `.md` absent → not a candidate
+
+lint `missing_source` (`tests/engine/test_lint.py`):
+- absolute source that no longer exists → flagged
+- existing source → not flagged
+- relative source resolved against `project_dir` → correct flag/no-flag
+- `source == ""` → not a candidate
+- page `.md` absent → not a candidate
+
+last-wins dedup (`tests/engine/test_lint.py`, both detectors):
+- `ingest(oldsrc) → delete → ingest(newsrc)` for one slug: `_missing_source` and
+  `_stale` judge the page by `newsrc`, not by `oldsrc`.
 
 Follow the existing no-network pattern: monkeypatch `indexer.embed_texts`, set
 dummy `IWIKI_*` env vars.
 
 ## Docs / versioning
 
+- `README.md`: add a `wiki_delete_page` row to the tool table; extend the
+  `wiki_lint` row to mention `missing_source` (source-gone deletion candidates).
 - `docs/wiki/`: document the lint `missing_source` field and the
   `wiki_delete_page` tool; update `architecture.md` entry. Then ingest via the
   iwiki MCP tools (`wiki_write_page` + `wiki_index`) and run `wiki_lint`.
