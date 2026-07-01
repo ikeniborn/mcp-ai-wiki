@@ -43,3 +43,8 @@ def test_replace_section_duplicate_heading_raises():
 def test_replace_section_empty_heading_raises():
     with pytest.raises(SectionError):
         replace_section(PAGE, "  ", "x")
+
+
+def test_replace_section_rejects_h2_in_body():
+    with pytest.raises(SectionError):
+        replace_section(PAGE, "Flow", "## Injected\nx")

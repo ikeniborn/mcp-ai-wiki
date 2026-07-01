@@ -24,6 +24,8 @@ def replace_section(content: str, heading: str, new_body: str) -> str:
     target = heading.lstrip("#").strip()
     if not target:
         raise SectionError("empty heading")
+    if _H2.search(new_body):
+        raise SectionError("new_body must not contain a ## heading")
     heads = list(_H2.finditer(content))
     matches = [i for i, m in enumerate(heads) if m.group(1).strip() == target]
     if not matches:
