@@ -375,7 +375,7 @@ def wiki_update_page(
     except Exception:
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(original)
-        if source:
+        if source:            # mirrors the upsert gate above
             _restore_log(log_file, log_before)
         raise
     page_rel = f"{valid_domain}/{page_file}"

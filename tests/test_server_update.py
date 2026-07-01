@@ -94,3 +94,25 @@ def test_update_rolls_back_file_and_log_on_index_failure(tmp_path, monkeypatch):
     content = open(os.path.join(b, "backend", "auth.md"), encoding="utf-8").read()
     assert "login then token" in content and "newbody" not in content
     assert open(base.log_path(b, "backend"), encoding="utf-8").read() == log_before
+
+
+def test_update_removes_log_it_created_on_rollback(tmp_path, monkeypatch):
+    b, _ = _seed(tmp_path, monkeypatch)
+    # page exists on disk but NO ingest log yet (log-less page)
+    page = os.path.join(b, "backend", "auth.md")
+    with open(page, "w", encoding="utf-8") as fh:
+        fh.write(BASE_MD)
+    log_file = base.log_path(b, "backend")
+    assert not os.path.exists(log_file)
+
+    src = tmp_path / "src.txt"
+    src.write_text("v1")
+    monkeypatch.setattr(
+        indexer, "index_domain",
+        lambda cfg, base, domain: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    out = server.wiki_update_page("backend", "auth", "Flow", "newbody", source=str(src))
+
+    assert "error" in out
+    assert open(page, encoding="utf-8").read() == BASE_MD          # file restored
+    assert not os.path.exists(log_file)                            # log removed on rollback
